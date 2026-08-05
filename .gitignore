@@ -1,0 +1,19 @@
+# Hermes session context
+.hermes/
+
+# Built binaries / bundles
+TelegramSidebarWeb
+TelegramSidebarWeb.app/
+
+# Compiled test executables
+Tests/backtest
+Tests/display_probe
+Tests/*.o
+
+# Logs
+/tmp/tg_*.log
+
+# Xcode / SwiftPM debris
+.DS_Store
+*.swiftsourceinfo
+.build/
