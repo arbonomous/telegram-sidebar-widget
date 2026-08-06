@@ -20,6 +20,11 @@ elif [ -f "$SRC_DIR/Logo.png" ]; then
   cp "$SRC_DIR/Logo.png" "$MACOS/Logo.png"
 fi
 
+# App icon (generated from Logo.png).
+if [ -f "$SRC_DIR/../build/AppIcon.icns" ]; then
+  cp "$SRC_DIR/../build/AppIcon.icns" "$RES/AppIcon.icns"
+fi
+
 cat > "$OUT/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0"><dict>
@@ -28,6 +33,7 @@ cat > "$OUT/Contents/Info.plist" <<PLIST
   <key>CFBundleIdentifier</key><string>com.user.telegram-sidebar-web</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleVersion</key><string>1.0</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>LSUIElement</key><string>true</string>
   <key>NSRequiresAquaSystemAppearance</key><string>false</string>

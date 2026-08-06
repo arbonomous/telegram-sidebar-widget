@@ -59,18 +59,42 @@ The bundle copies the official `Logo.png` next to the executable; the rail
 loads it at runtime. (Bundle resource lookup was unreliable in this project,
 so the logo is loaded from an explicit file path.)
 
+## Distribute as a DMG
+
+```bash
+bash web/dmg.sh          # builds the .app, then ./TelegramSidebar.dmg
+```
+
+Send `TelegramSidebar.dmg` to a friend — they open it and drag
+`TelegramSidebarWeb.app` into Applications.
+
+## Tests
+
+```bash
+xcrun swift Tests/backtest.swift        # logic harness (badge, hover, geometry)
+bash Tests/render_smoke.sh              # renders the WebView and proves it isn't blank
+```
+
+`render_smoke.sh` launches the app in `--selftest` mode, which force-expands
+the panel, captures the rendered pixels, and fails if the WebView paints
+blank/white (the regression that once shipped undetected). Requires network
+access and a window server (run on a logged-in Mac, not headless CI).
+
 ## Project layout
 
 ```
 web/
-  AppDelegate.swift   # panel, rail, hover/animation, Telegram-Web bridge
+  AppDelegate.swift   # panel, rail, hover/animation, Telegram-Web bridge, --selftest
   main.swift          # NSApplication entry point (accessory policy)
   build.sh            # swiftc build
-  bundle.sh           # package as .app
+  bundle.sh           # package as .app (icon + logo)
+  dmg.sh              # package as distributable .dmg
   Logo.png            # official Telegram logo (rendered on the collapsed rail)
+build/AppIcon.icns    # app icon (generated from Logo.png)
 Logo.svg              # vector source for the logo
 Tests/
   backtest.swift      # end-to-end logic harness (20/20 checks)
+  render_smoke.sh     # render smoke-test (catches blank/white regressions)
 ```
 
 ## How it works
@@ -79,8 +103,9 @@ Tests/
 - A 40px `railView` holds the brand-blue background + logo; it is removed from
   the view hierarchy whenever the panel is expanded, so the blue never shows
   across a wide panel.
-- The `WKWebView` is **opaque** (`drawsBackground = true`) so Telegram's own
-  content always paints reliably inside a borderless panel.
+- The `WKWebView` loads `web.telegram.org/k` directly and is **opaque**
+  (`drawsBackground = true`) so Telegram's own content always paints reliably
+  inside a borderless panel. It is explicitly un-hidden on every expand.
 - An injected script forces Telegram's light theme and keeps it applied.
 - Hover is polled via `NSEvent.mouseLocation` (no Accessibility permission
   required), driving a smooth `easeInEaseOut` expand/collapse.

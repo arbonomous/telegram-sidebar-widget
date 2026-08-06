@@ -34,7 +34,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
         setupPanel()
         setupWebView()
         webView.load(URLRequest(url: URL(string: "https://web.telegram.org/k")!))
-        startHoverPolling()
+        // --selftest: after load settles, render the WebView and prove it isn't
+        // blank, then quit. Otherwise, start hover polling.
+        if CommandLine.arguments.contains("--selftest") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { self.runSelfTest() }
+        } else {
+            startHoverPolling()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -228,6 +234,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
         // Re-inject the bridge (large user-script can be silently skipped at docEnd),
         // which pins the light theme and forwards notifications + unread count.
         webView.evaluateJavaScript(Self.bridgeJS, completionHandler: nil)
+    }
+
+    // --selftest: force-expand, capture the rendered panel, and report whether it
+    // actually rendered Telegram (not a blank/white panel). Writes
+    // /tmp/tg_selftest.json and terminates. Triggered from launch (not didFinish)
+    // so it doesn't depend on the navigation callback firing.
+    private var selfTestDone = false
+    private func runSelfTest() {
+        // Watchdog: never hang — report failure if we haven't finished in time.
+        Timer.scheduledTimer(withTimeInterval: 25, repeats: false) { [weak self] _ in
+            self?.reportSelfTest(blank: true, colors: 0, reason: "watchdog timeout")
+        }
+        setExpanded(true)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            guard let self = self else { return }
+            guard let cv = self.panel.contentView else { self.reportSelfTest(blank: true, colors: 0, reason: "no contentView"); return }
+            cv.layoutSubtreeIfNeeded()
+            guard let rep = cv.bitmapImageRepForCachingDisplay(in: cv.bounds) else {
+                self.reportSelfTest(blank: true, colors: 0, reason: "no bitmap"); return
+            }
+            cv.cacheDisplay(in: cv.bounds, to: rep)
+            if let png = rep.representation(using: .png, properties: [:]) {
+                try? png.write(to: URL(fileURLWithPath: "/tmp/tg_selftest.png"))
+            }
+            let (blank, colors) = self.classifyRep(rep)
+            self.reportSelfTest(blank: blank, colors: colors, reason: blank ? "blank/white render" : "rendered \(colors) color buckets")
+        }
+    }
+
+    private func reportSelfTest(blank: Bool, colors: Int, reason: String) {
+        guard !selfTestDone else { return }
+        selfTestDone = true
+        let json = "{\"ok\":\(!blank),\"reason\":\"\(reason)\",\"colors\":\(colors)}\n"
+        try? json.write(toFile: "/tmp/tg_selftest.json", atomically: true, encoding: .utf8)
+        NSApplication.shared.terminate(nil)
+    }
+
+    // Sample the bitmap; a blank/white panel yields ~1 color bucket, Telegram many.
+    private func classifyRep(_ rep: NSBitmapImageRep) -> (blank: Bool, colors: Int) {
+        let w = rep.pixelsWide, h = rep.pixelsHigh
+        let stepX = max(1, w / 60), stepY = max(1, h / 60)
+        var seen = Set<Int>()
+        for y in stride(from: 0, to: h, by: stepY) {
+            for x in stride(from: 0, to: w, by: stepX) {
+                if let c = rep.colorAt(x: x, y: y) {
+                    let r = Int(c.redComponent * 255) >> 4
+                    let g = Int(c.greenComponent * 255) >> 4
+                    let b = Int(c.blueComponent * 255) >> 4
+                    seen.insert((r << 8) | (g << 4) | b)
+                }
+            }
+        }
+        return (seen.count < 6, seen.count)
     }
 
     // MARK: script messages

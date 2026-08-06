@@ -1,9 +1,11 @@
 # Hermes session context
 .hermes/
 
-# Built binaries / bundles
+# Built binaries / bundles / distributables
 TelegramSidebarWeb
 TelegramSidebarWeb.app/
+TelegramSidebar.dmg
+build/
 
 # Compiled test executables
 Tests/backtest
