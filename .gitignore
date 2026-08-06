@@ -4,8 +4,11 @@
 # Built binaries / bundles / distributables
 TelegramSidebarWeb
 TelegramSidebarWeb.app/
-TelegramSidebar.dmg
+SidePiece
+SidePiece.app/
+SidePiece.dmg
 build/
+*.dmg
 
 # Compiled test executables
 Tests/backtest
