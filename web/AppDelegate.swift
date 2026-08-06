@@ -27,14 +27,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
     // MARK: lifecycle
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        // UNUserNotificationCenter requires a real .app bundle. When launched as
-        // a bare executable (e.g. ./TelegramSidebarWeb during dev/testing) the
-        // process has no bundle proxy and current() throws — which would crash
-        // the app at launch before the panel ever appears. Guard it so the
-        // widget still runs (panel + webview); it just skips native alerts.
-        if Bundle.main.bundleURL.pathExtension.lowercased() == "app" {
-            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
-            UNUserNotificationCenter.current().delegate = self
+        // UNUserNotificationCenter.current() aborts the process (uncatchable
+        // assertion: "bundleProxyForCurrentProcess is nil") when the app is
+        // launched in a context where the bundle proxy can't be resolved — e.g.
+        // as a bare executable, OR a .app launched by a non-LaunchServices parent
+        // (Hermes/terminal) leaving the process orphaned. The panel must appear
+        // regardless, so we only touch notifications when the bundle identifier is
+        // actually resolvable, and we defer the call out of the launch backtrace.
+        if Self.canUseNotifications {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+                UNUserNotificationCenter.current().delegate = self
+            }
         }
 
         setupStatusItem()
@@ -82,11 +86,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
                              defer: false)
         panel.level = .statusBar
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        // Visible collapsed strip: a solid, slightly translucent dark bar with a
-        // right-edge hairline border. Without this the 40px panel paints nothing
-        // (clear bg + transparent webview) and the collapsed widget is invisible —
-        // it looks broken even though it's on-screen and working.
-        panel.backgroundColor = NSColor(srgbRed: 0.10, green: 0.11, blue: 0.13, alpha: 0.92)
+        // Visible collapsed strip: Telegram's brand blue (#3390EC) so the widget
+        // reads as Telegram at a glance, matching the accent used for the active
+        // tab / FAB / logo in web.telegram.org. A solid bar is required — without
+        // it the 40px panel paints nothing (clear bg + transparent webview) and the
+        // collapsed widget is invisible.
+        let tgBlue = NSColor(srgbRed: 0.20, green: 0.5647, blue: 0.9255, alpha: 1.0)
+        panel.backgroundColor = tgBlue
         panel.isOpaque = true
         panel.hasShadow = true
         panel.acceptsMouseMovedEvents = true
@@ -97,13 +103,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
         // Draw a visible airplane glyph + hairline border on the collapsed strip so
         // the widget is discoverable when not expanded.
         if let cview = panel.contentView {
-            // Force the content view itself opaque-dark. NSWindow ignores
-            // panel.backgroundColor when the .titled styleMask draws a themed
-            // frame, so the only reliable way to make the collapsed strip visible
-            // is a layer-backed content view with a solid background color.
             cview.wantsLayer = true
             cview.layer?.isOpaque = true
-            cview.layer?.backgroundColor = NSColor(srgbRed: 0.10, green: 0.11, blue: 0.13, alpha: 1.0).cgColor
+            cview.layer?.backgroundColor = tgBlue.cgColor
 
             let glyph = NSTextField(labelWithString: "✈")
             glyph.font = NSFont.systemFont(ofSize: 18)
@@ -117,7 +119,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
 
             let border = NSView()
             border.wantsLayer = true
-            border.layer?.backgroundColor = NSColor(srgbRed: 0.55, green: 0.58, blue: 0.62, alpha: 0.7).cgColor
+            // Subtle lighter-blue hairline on the right edge — clean, minimal.
+            border.layer?.backgroundColor = NSColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.3).cgColor
             border.frame = NSRect(x: 0, y: 0, width: 1, height: visH)
             cview.addSubview(border)
         }
@@ -320,12 +323,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
     }
 
     private func postNativeNotification(title: String, body: String) {
-        guard Bundle.main.bundleURL.pathExtension.lowercased() == "app" else { return }
+        guard Self.canUseNotifications else { return }
         let c = UNMutableNotificationContent()
         c.title = title
         c.body = body
         c.sound = .default
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil))
+    }
+
+    // True only when the running process has a resolvable bundle proxy — i.e. a
+    // real .app whose bundleIdentifier was successfully looked up. UNUserNotification
+    // Center.current() aborts the process when this is false, so it's the single
+    // gate for every notification-center call.
+    private static var canUseNotifications: Bool {
+        let b = Bundle.main
+        return b.bundleURL.pathExtension.lowercased() == "app" && b.bundleIdentifier != nil
     }
 
     // JS bridge
@@ -347,6 +359,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
           Patched.prototype = Real.prototype;
           window.Notification = Patched;
         }
+        // Force Telegram Web into its official DARK theme so the sidebar matches the
+        // native Telegram macOS client (web.telegram.org otherwise renders light and
+        // looks nothing like the app). Injects the dark palette as :root CSS vars +
+        // base colors, reapplied on a timer + MutationObserver because Telegram
+        // rebuilds nodes on navigation.
+        (function () {
+          try {
+            var css = [
+              'html, body { background-color: #0e1621 !important; color-scheme: dark !important; }',
+              ':root {',
+              '  --surface-color: #17212b !important;',
+              '  --bg-color: #0e1621 !important;',
+              '  --background-color: #0e1621 !important;',
+              '  --panel-background: #17212b !important;',
+              '  --chatlist-background: #17212b !important;',
+              '  --sidebar-background: #17212b !important;',
+              '  --scrollbar-color: #5d6d7a #17212b !important;',
+              '  --hover-color: #202b36 !important;',
+              '  --active-color: #2b5278 !important;',
+              '  --primary-color: #2ea6ff !important;',
+              '  --text-color: #ffffff !important;',
+              '  --secondary-text-color: #7d8e9b !important;',
+              '}'
+            ].join('\\n');
+            function apply() {
+              var id = 'tg-dark-theme';
+              var el = document.getElementById(id);
+              if (!el) {
+                el = document.createElement('style');
+                el.id = id;
+                document.documentElement.appendChild(el);
+              }
+              el.textContent = css;
+            }
+            apply();
+            setInterval(apply, 2000);
+            if (window.MutationObserver) {
+              new MutationObserver(apply).observe(document.documentElement, { childList: true, subtree: true });
+            }
+          } catch (e) {}
+        })();
       } catch (e) {}
     })();
     """
