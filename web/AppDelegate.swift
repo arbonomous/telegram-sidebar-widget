@@ -33,7 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
         setupStatusItem()
         setupPanel()
         setupWebView()
-        webView.load(URLRequest(url: URL(string: "https://web.telegram.org")!))
+        webView.load(URLRequest(url: URL(string: "https://web.telegram.org/k")!))
         startHoverPolling()
     }
 
@@ -91,6 +91,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
         railView.frame = NSRect(x: 0, y: 0, width: 40, height: visH)
         panel.contentView?.addSubview(railView)
         setupRailChrome()
+
+        // One-shot diagnostic (not a poll loop): confirm the panel is on-screen.
+        try? "panel docked at x=\(Int(panel.frame.minX)) width=\(Int(panel.frame.width)) hidden=\(panel.isVisible ? "visible" : "hidden")\n"
+            .write(toFile: "/tmp/tg_panel.log", atomically: true, encoding: .utf8)
     }
 
     private func setupRailChrome() {
@@ -165,6 +169,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
 
         webView.frame = NSRect(x: 0, y: 0, width: 380, height: visH)
         railView.isHidden = expanded
+        if expanded { webView.isHidden = false }   // always reveal on expand (collapse hides it)
         webView.alphaValue = expanded ? 0 : 1
 
         NSAnimationContext.runAnimationGroup({ ctx in
