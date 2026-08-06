@@ -1,4 +1,4 @@
-// End-to-end back test for the Telegram Sidebar Widget.
+// End-to-end back test for the SidePiece widget.
 // This is a FAITHFUL PORT of the deterministic logic in
 // web/AppDelegate.swift (updateBadge / setExpanded / pollHover) so we can
 // exercise it from the command line with real assertions. The ported code is

@@ -2,7 +2,7 @@
 # Build the WKWebView-based Telegram sidebar (login via QR in the app — no typing).
 set -euo pipefail
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
-OUT="${1:-$SRC_DIR/../TelegramSidebarWeb}"
+OUT="${1:-$SRC_DIR/../SidePiece}"
 
 swiftc -O \
   -framework AppKit -framework WebKit -framework UserNotifications -framework Cocoa \

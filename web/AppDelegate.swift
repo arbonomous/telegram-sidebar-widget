@@ -52,7 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
     private func setupStatusItem() {
         if let btn = statusItem.button {
             btn.title = "✈"
-            btn.toolTip = "Telegram Sidebar"
+            btn.toolTip = "SidePiece"
             btn.target = self
             btn.action = #selector(togglePanel)
         }
@@ -242,25 +242,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
     // so it doesn't depend on the navigation callback firing.
     private var selfTestDone = false
     private func runSelfTest() {
-        // Watchdog: never hang — report failure if we haven't finished in time.
-        Timer.scheduledTimer(withTimeInterval: 25, repeats: false) { [weak self] _ in
-            self?.reportSelfTest(blank: true, colors: 0, reason: "watchdog timeout")
-        }
         setExpanded(true)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
-            guard let self = self else { return }
-            guard let cv = self.panel.contentView else { self.reportSelfTest(blank: true, colors: 0, reason: "no contentView"); return }
-            cv.layoutSubtreeIfNeeded()
-            guard let rep = cv.bitmapImageRepForCachingDisplay(in: cv.bounds) else {
-                self.reportSelfTest(blank: true, colors: 0, reason: "no bitmap"); return
+        // Poll the rendered pixels for up to ~30s. Telegram Web can take a while
+        // to mount on a cold load, so we retry instead of failing on the first
+        // (possibly still-blank) frame. Only report blank if it stays blank.
+        var attempts = 0
+        func poll() {
+            guard let cv = self.panel.contentView,
+                  let rep = cv.bitmapImageRepForCachingDisplay(in: cv.bounds) else {
+                self.reportSelfTest(blank: true, colors: 0, reason: "no contentView/bitmap"); return
             }
+            cv.layoutSubtreeIfNeeded()
             cv.cacheDisplay(in: cv.bounds, to: rep)
             if let png = rep.representation(using: .png, properties: [:]) {
                 try? png.write(to: URL(fileURLWithPath: "/tmp/tg_selftest.png"))
             }
             let (blank, colors) = self.classifyRep(rep)
-            self.reportSelfTest(blank: blank, colors: colors, reason: blank ? "blank/white render" : "rendered \(colors) color buckets")
+            if !blank || attempts >= 14 {
+                self.reportSelfTest(blank: blank, colors: colors,
+                                     reason: blank ? "blank/white render" : "rendered \(colors) color buckets")
+            } else {
+                attempts += 1
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { poll() }
+            }
         }
+        // Watchdog: never hang — if polling never settles, report failure.
+        Timer.scheduledTimer(withTimeInterval: 35, repeats: false) { [weak self] _ in
+            self?.reportSelfTest(blank: true, colors: 0, reason: "watchdog timeout")
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { poll() }
     }
 
     private func reportSelfTest(blank: Bool, colors: Int, reason: String) {

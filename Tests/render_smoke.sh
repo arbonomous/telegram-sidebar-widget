@@ -7,13 +7,11 @@
 # (must run on a logged-in Mac, not a headless CI box).
 set -uo pipefail
 
-APP="${1:-/Applications/TelegramSidebarWeb.app}"
-BIN="$APP/Contents/MacOS/TelegramSidebarWeb"
-BIN="${BIN%/Contents/MacOS/TelegramSidebarWeb}"   # allow passing .app or binary
-if [ -d "$1" ]; then BIN="$1/Contents/MacOS/TelegramSidebarWeb"; fi
+APP="${1:-/Applications/SidePiece.app}"
+BIN="$APP/Contents/MacOS/SidePiece"
 test -x "$BIN" || { echo "FAIL: build the app first (bash web/bundle.sh)"; exit 1; }
 
-pgrep -f TelegramSidebarWeb | xargs -r kill 2>/dev/null; sleep 1
+pgrep -f SidePiece | xargs -r kill 2>/dev/null; sleep 1
 rm -f /tmp/tg_selftest.json /tmp/tg_selftest.png
 
 # Launch the real app binary in self-test mode (it quits itself after reporting).

@@ -2,7 +2,7 @@
 # Bundle the WKWebView variant as a .app (LSUIElement accessory, no Dock icon).
 set -euo pipefail
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
-NAME="TelegramSidebarWeb"
+NAME="SidePiece"
 OUT="$SRC_DIR/../$NAME.app"
 MACOS="$OUT/Contents/MacOS"
 RES="$OUT/Contents/Resources"
@@ -20,7 +20,7 @@ elif [ -f "$SRC_DIR/Logo.png" ]; then
   cp "$SRC_DIR/Logo.png" "$MACOS/Logo.png"
 fi
 
-# App icon (generated from Logo.png).
+# App icon (generated from build/SidePiece.svg).
 if [ -f "$SRC_DIR/../build/AppIcon.icns" ]; then
   cp "$SRC_DIR/../build/AppIcon.icns" "$RES/AppIcon.icns"
 fi
@@ -30,7 +30,7 @@ cat > "$OUT/Contents/Info.plist" <<PLIST
 <plist version="1.0"><dict>
   <key>CFBundleName</key><string>$NAME</string>
   <key>CFBundleExecutable</key><string>$NAME</string>
-  <key>CFBundleIdentifier</key><string>com.user.telegram-sidebar-web</string>
+  <key>CFBundleIdentifier</key><string>com.sidepiece.app</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleVersion</key><string>1.0</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>

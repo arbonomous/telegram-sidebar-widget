@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Package the bundled .app into a distributable DMG.
-# Usage: bash web/dmg.sh   -> builds TelegramSidebarWeb.app then ./TelegramSidebar.dmg
+# Usage: bash web/dmg.sh   -> builds SidePiece.app then ./SidePiece.dmg
 set -euo pipefail
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SRC_DIR/.." && pwd)"
-NAME="TelegramSidebarWeb"
+NAME="SidePiece"
 APP="$ROOT/$NAME.app"
 STAGE="$ROOT/build/dmg-stage"
-DMG="$ROOT/TelegramSidebar.dmg"
+DMG="$ROOT/SidePiece.dmg"
 
 # 1) Build + bundle the app.
 bash "$SRC_DIR/bundle.sh"
@@ -20,6 +20,6 @@ ln -s /Applications "$STAGE/Applications"
 
 # 3) Create the DMG.
 rm -f "$DMG"
-hdiutil create -volname "Telegram Sidebar" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+hdiutil create -volname "SidePiece" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
 
-echo "Built $DMG — send this to your friend. They drag TelegramSidebarWeb.app to Applications."
+echo "Built $DMG — send this to your friend. They drag SidePiece.app to Applications."

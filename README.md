@@ -1,4 +1,4 @@
-# Telegram Sidebar Widget
+# SidePiece
 
 A screen-docked Telegram widget for macOS. It lives as a thin strip on the
 **right screen edge** and expands into a full chat panel when you hover it —
@@ -7,8 +7,6 @@ no Telegram API credentials required.
 It wraps **Telegram Web** (`web.telegram.org/k`) inside a native `WKWebView`,
 so sending, receiving, and read state all work, and your login persists
 between launches.
-
-![Collapsed rail](https://img.shields.io/badge/rail-%233390EC%20+%20Telegram%20logo-3390EC)
 
 ## Features
 
@@ -32,13 +30,13 @@ between launches.
 
 ```bash
 cd web
-./build.sh          # produces ../TelegramSidebarWeb (a runnable binary)
+./build.sh          # produces ../SidePiece (a runnable binary)
 ```
 
 ## Run (from source)
 
 ```bash
-./TelegramSidebarWeb
+./SidePiece
 ```
 
 - Hover the strip on the right edge → it expands.
@@ -49,10 +47,10 @@ cd web
 
 ```bash
 cd web
-./bundle.sh          # produces ../TelegramSidebarWeb.app
+./bundle.sh          # produces ../SidePiece.app
 ```
 
-Move `TelegramSidebarWeb.app` to `/Applications`, then add it to
+Move `SidePiece.app` to `/Applications`, then add it to
 **System Settings ▸ General ▸ Login Items** so it starts at login.
 
 The bundle copies the official `Logo.png` next to the executable; the rail
@@ -62,11 +60,11 @@ so the logo is loaded from an explicit file path.)
 ## Distribute as a DMG
 
 ```bash
-bash web/dmg.sh          # builds the .app, then ./TelegramSidebar.dmg
+bash web/dmg.sh          # builds the .app, then ./SidePiece.dmg
 ```
 
-Send `TelegramSidebar.dmg` to a friend — they open it and drag
-`TelegramSidebarWeb.app` into Applications.
+Send `SidePiece.dmg` to a friend — they open it and drag
+`SidePiece.app` into Applications.
 
 ## Tests
 
