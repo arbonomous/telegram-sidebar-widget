@@ -12,9 +12,12 @@ mkdir -p "$MACOS" "$RES"
 
 "$SRC_DIR/build.sh" "$MACOS/$NAME"
 
-# Bundle the doodle wallpaper tile as a resource the app loads at runtime.
-if [ -f "$SRC_DIR/doodles-wallpaper.png" ]; then
-  cp "$SRC_DIR/doodles-wallpaper.png" "$RES/doodles-wallpaper.png"
+# Copy the official Telegram logo next to the binary (loaded from an explicit
+# path at runtime — Bundle resource lookup was unreliable in this project).
+if [ -f "$SRC_DIR/../Logo.png" ]; then
+  cp "$SRC_DIR/../Logo.png" "$MACOS/Logo.png"
+elif [ -f "$SRC_DIR/Logo.png" ]; then
+  cp "$SRC_DIR/Logo.png" "$MACOS/Logo.png"
 fi
 
 cat > "$OUT/Contents/Info.plist" <<PLIST

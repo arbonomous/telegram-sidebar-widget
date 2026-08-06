@@ -18,8 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
     private var panel: SidebarPanel!
     private var webView: WKWebView!
     private var railView: NSView!
-    private var avatarView: NSImageView?
-    private var railWallpaperImg: NSImage?   // doodle tile, repainted to full rail height on layout
+    private var logoView: NSImageView?
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private var isExpanded = false
 
@@ -103,39 +102,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
         panel.hidesOnDeactivate = false
         panel.title = "Telegram"
 
-        // A 40px-wide rail pinned to the LEFT edge of the panel. It is SAGE
-        // (#cfe9d4) to match the chat-wallpaper theme, with the user's Telegram
-        // profile picture (delivered from the page) at the top and a hairline
-        // border. It is removed from the view hierarchy the moment the panel
-        // expands, so an expanded panel never shows the rail.
-        let sage = NSColor(srgbRed: 0.812, green: 0.913, blue: 0.831, alpha: 1.0) // #cfe9d4
+        // A 40px-wide rail pinned to the LEFT edge of the panel. It is Telegram
+        // brand blue (#3390EC) with a white Telegram paper-plane logo at the top.
+        // It is removed from the view hierarchy the moment the panel expands, so an
+        // expanded panel never shows the rail.
+        let brandBlue = NSColor(srgbRed: 0.2, green: 0.565, blue: 0.925, alpha: 1.0) // #3390EC
         railView = NSView()
         railView.wantsLayer = true
         railView.layer?.isOpaque = true
-        railView.layer?.backgroundColor = sage.cgColor
+        railView.layer?.backgroundColor = brandBlue.cgColor
         railView.frame = NSRect(x: 0, y: 0, width: 40, height: visH)
         panel.contentView?.addSubview(railView)
 
-        if let cview = panel.contentView {
-            cview.wantsLayer = true
-
-            // Avatar placeholder at the top of the rail (replaced by the user's
-            // real PFP once the page reports it via the 'avatar' bridge message).
-            let avatar = NSImageView(frame: NSRect(x: 6, y: visH - 36, width: 28, height: 28))
-            avatar.imageScaling = .scaleProportionallyUpOrDown
-            avatar.wantsLayer = true
-            avatar.layer?.cornerRadius = 6
-            avatar.layer?.masksToBounds = true
-            avatar.layer?.backgroundColor = NSColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.7).cgColor
-            avatarView = avatar
-            railView.addSubview(avatar)
-
-            let border = NSView()
-            border.wantsLayer = true
-            border.layer?.backgroundColor = NSColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.4).cgColor
-            border.frame = NSRect(x: 39, y: 0, width: 1, height: visH)
-            railView.addSubview(border)
-        }
+        // White Telegram logo at the top of the rail (clean, no doodle/avatar).
+        setupRailChrome()
 
         // The hover loop already expands the panel, so a click gesture here is
         // redundant AND harmful: it sits on contentView and competes with the
@@ -256,9 +236,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
                 self.webView.isHidden = true
                 self.webView.alphaValue = 1
                 self.railView.isHidden = false
-                // Repaint the doodle to the rail's full current height so it fills
-                // the whole collapsed panel (layout may have settled since first paint).
-                self.paintRailWallpaper()
+                // Rail is solid brand blue with a static logo — nothing to repaint.
             }
         })
 
@@ -400,114 +378,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
             postNativeNotification(title: title, body: bodyText)
         case "domstate":
             break
-        case "avatar":
-            if let url = body["url"] as? String, let u = URL(string: url) {
-                loadRailAvatar(from: u)
-            }
-        case "wallpaper":
-            loadRailWallpaper()
         default:
-
             break
         }
     }
 
-    private func loadRailAvatar(from url: URL) {
-        // Load asynchronously so it never blocks the UI. data: URLs are self-contained
-        // (no network); http(s)/blob: are fetched.
-        if url.scheme == "data", let data = try? Data(contentsOf: url), let img = NSImage(data: data) {
-            DispatchQueue.main.async { self.avatarView?.image = img }
-            return
-        }
-        let task = URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
-            guard let self = self, let data = data, let img = NSImage(data: data) else { return }
-            DispatchQueue.main.async { self.avatarView?.image = img }
-        }
-        task.resume()
-    }
+    private func setupRailChrome() {
+        // Solid brand-blue rail with the official Telegram logo (blue disc + white
+        // paper-plane) at the top. Static (no web dependency).
+        guard let rv = railView else { return }
+        rv.layer?.backgroundColor = NSColor(srgbRed: 0.2, green: 0.565, blue: 0.925, alpha: 1.0).cgColor
 
-    private func loadRailWallpaper() {
-        // Tile the bundled doodle wallpaper on the collapsed rail so it matches the
-        // chat's doodle theme. Prefers an explicit `doodles-wallpaper.png` beside the
-        // binary (drop Telegram's real tile there to use it); otherwise uses the bundled
-        // generated tile. Falls back to sage if neither is present.
+        // Load the official Logo.png from beside the executable (Bundle resource
+        // lookup was unreliable here; an explicit file path next to the binary works).
         let fm = FileManager.default
-        var candidates: [URL] = []
-        if let rp = Bundle.main.resourcePath {
-            candidates.append(URL(fileURLWithPath: rp).appendingPathComponent("doodles-wallpaper.png"))
-        }
+        var url: URL?
         if let ex = Bundle.main.executableURL {
-            candidates.append(ex.deletingLastPathComponent().appendingPathComponent("doodles-wallpaper.png"))
+            let cand = ex.deletingLastPathComponent().appendingPathComponent("Logo.png")
+            if fm.fileExists(atPath: cand.path) { url = cand }
         }
-        // Dev fallback: the source asset next to the project.
-        if let rp = Bundle.main.resourcePath {
-            candidates.append(URL(fileURLWithPath: rp).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("web/doodles-wallpaper.png"))
-        }
-        var chosen: URL?
-        for c in candidates {
-            if fm.fileExists(atPath: c.path) { chosen = c; break }
-        }
-        guard let url = chosen, let data = try? Data(contentsOf: url),
-              let img = NSImage(data: data) else {
-            return
-        }
-        self.railWallpaperImg = img
-        DispatchQueue.main.async { self.paintRailWallpaper() }
-    }
+        guard let u = url, let img = NSImage(contentsOf: u) else { return }
 
-    /// Paint the doodle tile across the rail's FULL current height. Called once the
-    /// image is loaded and again whenever the rail's layout (height) may have changed,
-    /// so the doodle always fills the whole collapsed panel (no empty bottom strip).
-    private func paintRailWallpaper() {
-        guard let img = railWallpaperImg else { return }
-        railView?.layoutSubtreeIfNeeded()
-        setRailWallpaper(img)
-    }
-
-    private func setRailWallpaper(_ img: NSImage) {
-        guard let layer = railView?.layer else {
-            return
-        }
-        guard let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-            return
-        }
-        let rv = railView!
-        // Render the tile into a full-size bitmap (40 x railHeight), then set as
-        // layer.contents. This is bulletproof in layer-backed/borderless panels;
-        // NSColor(patternImage:) can render as a solid color in such contexts.
-        // Use the railView's own frame height (what's actually on screen), not the
-        // layer.bounds which can be stale before layout settles.
-        var size = rv.frame.size
-        if size.height < 1 { size = layer.bounds.size }
-        if size.height < 1 { size = CGSize(width: 40, height: 844) }
-        let space = CGColorSpaceCreateDeviceRGB()
-        guard let ctx = CGContext(data: nil,
-                                  width: Int(size.width),
-                                  height: Int(size.height),
-                                  bitsPerComponent: 8,
-                                  bytesPerRow: 0,
-                                  space: space,
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
-            return
-        }
-        // Explicitly tile the 40xTileHeight image down the rail. We avoid relying on
-        // CGContext.draw(...,byTiling:) because it scales-to-fill in this context
-        // (producing a vertically stretched single motif). Multiple draw calls
-        // guarantee correct, repeated tiling.
-        let tileH = CGFloat(cg.height)
-        var y: CGFloat = 0
-        while y < size.height {
-            ctx.draw(cg, in: CGRect(x: 0, y: y, width: size.width, height: tileH))
-            y += tileH
-        }
-        guard let out = ctx.makeImage() else {
-            return
-        }
-        layer.backgroundColor = nil
-        layer.contents = out
-        layer.contentsGravity = .topLeft
-        layer.isOpaque = true
-        railView?.needsDisplay = true
+        // Blue disc with white plane, centered at the top of the 40px rail.
+        let logo = NSImageView(frame: NSRect(x: 4, y: rv.bounds.height - 36, width: 32, height: 32))
+        logo.image = img
+        logo.imageScaling = .scaleProportionallyUpOrDown
+        logo.wantsLayer = true
+        logo.layer?.opacity = 1
+        rv.addSubview(logo)
+        logoView = logo
     }
 
     private func updateBadge(from title: String) {
@@ -605,50 +504,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
                 (document.head || document.documentElement).appendChild(el);
               }
               el.textContent = css;
-              // (No wallpaper.) The chat list + chats use Telegram's default white
-              // light surfaces — nothing to override here. Only the user's avatar is
-              // extracted (for the collapsed rail) and reported below.
-              // Report the user's own avatar (for the collapsed rail). Telegram lazy-loads
-              // pictures via data-src (http url) with a tiny data-URI placeholder, and may
-              // render avatars as <canvas>/<img> inside .avatar-photo. Prefer a self-contained
-              // data: URL (Swift can load it directly); convert blob: URLs to data: via fetch.
-              var url = null;
-              var cands = [];
-              try {
-                var nodes = document.querySelectorAll('.avatar-photo img, .avatar-photo canvas, img.avatar-photo, .sidebar-header .avatar-photo, .chatlist-chat .avatar-photo, .topbar .avatar-photo, .account .avatar-photo');
-                nodes.forEach(function (n) {
-                  var u = (n.getAttribute && (n.getAttribute('src') || n.getAttribute('data-src') || n.getAttribute('srcset'))) || n.src || '';
-                  if (u) cands.push(u.slice(0, 60));
-                  if (u && u.indexOf('data:') === 0 && !url) url = u;            // data: wins (self-contained)
-                  else if (u && u.indexOf('http') === 0 && !url) url = u;        // real CDN
-                });
-                // No data:/http found but we have a blob: — convert it to a data URL.
-                if (!url) {
-                  for (var ci = 0; ci < nodes.length; ci++) {
-                    var bu = nodes[ci].src || (nodes[ci].getAttribute && nodes[ci].getAttribute('src')) || '';
-                    if (bu.indexOf('blob:') === 0) {
-                      (function (blobUrl) {
-                        try {
-                          fetch(blobUrl).then(function (r) { return r.blob(); }).then(function (b) {
-                            var fr = new FileReader();
-                            fr.onload = function () { window.webkit.messageHandlers.tgBridge.postMessage({ type: 'avatar', url: String(fr.result) }); };
-                            fr.readAsDataURL(b);
-                          }).catch(function () {});
-                        } catch (e) {}
-                      })(bu);
-                      break;
-                    }
-                  }
-                }
-                if (url) window.webkit.messageHandlers.tgBridge.postMessage({ type: 'avatar', url: url });
-                // The collapsed rail shows the doodle wallpaper (bundled asset in the app).
-                // Tell Swift once to tile it; Swift reads the bundled/generated tile itself.
-                if (!window.__railWpLoaded) {
-                  window.__railWpLoaded = true;
-                  try { window.webkit.messageHandlers.tgBridge.postMessage({ type: 'wallpaper' }); } catch (e) {}
-                }
-              } catch (e) {}
-              apply();
+              // Light theme applied. The collapsed rail is a static brand-blue strip
+              // with the Telegram logo (drawn in Swift), so nothing else to do here.
+            }
+            apply();   // apply immediately, then keep it applied
             setInterval(apply, 2000);
             if (window.MutationObserver) {
               // Observe <body> (NOT documentElement). apply() writes into <head>, so
