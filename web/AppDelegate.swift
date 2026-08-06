@@ -17,6 +17,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
 
     private var panel: SidebarPanel!
     private var webView: WKWebView!
+    private var railView: NSView!
+    private var avatarView: NSImageView?
+    private var railWallpaperImg: NSImage?   // doodle tile, repainted to full rail height on layout
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private var isExpanded = false
 
@@ -86,13 +89,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
                              defer: false)
         panel.level = .statusBar
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        // Visible collapsed strip: Telegram's brand blue (#3390EC) so the widget
-        // reads as Telegram at a glance, matching the accent used for the active
-        // tab / FAB / logo in web.telegram.org. A solid bar is required — without
-        // it the 40px panel paints nothing (clear bg + transparent webview) and the
-        // collapsed widget is invisible.
-        let tgBlue = NSColor(srgbRed: 0.20, green: 0.5647, blue: 0.9255, alpha: 1.0)
-        panel.backgroundColor = tgBlue
+        // Panel background is WHITE so it matches Telegram's light theme (the
+        // reference screenshot shows a white/mint UI). This is only the fallback
+        // shown for a frame during the expand animation or a reload gap — the
+        // WebView paints Telegram's own light content on top. The brand-blue is
+        // confined to a separate 40px `railView` that is hidden whenever the panel
+        // is wide, so an expanded panel can never show blue.
+        panel.backgroundColor = NSColor.white
         panel.isOpaque = true
         panel.hasShadow = true
         panel.acceptsMouseMovedEvents = true
@@ -100,29 +103,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
         panel.hidesOnDeactivate = false
         panel.title = "Telegram"
 
-        // Draw a visible airplane glyph + hairline border on the collapsed strip so
-        // the widget is discoverable when not expanded.
+        // A 40px-wide rail pinned to the LEFT edge of the panel. It is SAGE
+        // (#cfe9d4) to match the chat-wallpaper theme, with the user's Telegram
+        // profile picture (delivered from the page) at the top and a hairline
+        // border. It is removed from the view hierarchy the moment the panel
+        // expands, so an expanded panel never shows the rail.
+        let sage = NSColor(srgbRed: 0.812, green: 0.913, blue: 0.831, alpha: 1.0) // #cfe9d4
+        railView = NSView()
+        railView.wantsLayer = true
+        railView.layer?.isOpaque = true
+        railView.layer?.backgroundColor = sage.cgColor
+        railView.frame = NSRect(x: 0, y: 0, width: 40, height: visH)
+        panel.contentView?.addSubview(railView)
+
         if let cview = panel.contentView {
             cview.wantsLayer = true
-            cview.layer?.isOpaque = true
-            cview.layer?.backgroundColor = tgBlue.cgColor
 
-            let glyph = NSTextField(labelWithString: "✈")
-            glyph.font = NSFont.systemFont(ofSize: 18)
-            glyph.textColor = .white
-            glyph.alignment = .center
-            glyph.drawsBackground = false
-            glyph.isBezeled = false
-            glyph.isEditable = false
-            glyph.frame = NSRect(x: 0, y: visH - 40, width: 40, height: 28)
-            cview.addSubview(glyph)
+            // Avatar placeholder at the top of the rail (replaced by the user's
+            // real PFP once the page reports it via the 'avatar' bridge message).
+            let avatar = NSImageView(frame: NSRect(x: 6, y: visH - 36, width: 28, height: 28))
+            avatar.imageScaling = .scaleProportionallyUpOrDown
+            avatar.wantsLayer = true
+            avatar.layer?.cornerRadius = 6
+            avatar.layer?.masksToBounds = true
+            avatar.layer?.backgroundColor = NSColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.7).cgColor
+            avatarView = avatar
+            railView.addSubview(avatar)
 
             let border = NSView()
             border.wantsLayer = true
-            // Subtle lighter-blue hairline on the right edge — clean, minimal.
-            border.layer?.backgroundColor = NSColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.3).cgColor
-            border.frame = NSRect(x: 0, y: 0, width: 1, height: visH)
-            cview.addSubview(border)
+            border.layer?.backgroundColor = NSColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.4).cgColor
+            border.frame = NSRect(x: 39, y: 0, width: 1, height: visH)
+            railView.addSubview(border)
         }
 
         // The hover loop already expands the panel, so a click gesture here is
@@ -135,17 +147,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
 
     // MARK: web view
     private func setupWebView() {
+        let visH = CGFloat(CGDisplayBounds(CGMainDisplayID()).height)
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()
         let controller = WKUserContentController()
+        controller.addUserScript(WKUserScript(source: Self.pingJS, injectionTime: .atDocumentEnd, forMainFrameOnly: false))
         controller.addUserScript(WKUserScript(source: Self.bridgeJS, injectionTime: .atDocumentEnd, forMainFrameOnly: false))
         controller.addUserScript(WKUserScript(source: Self.scrollFixJS, injectionTime: .atDocumentEnd, forMainFrameOnly: false))
         controller.add(self, name: "tgBridge")
         config.userContentController = controller
 
-        webView = WKWebView(frame: .zero, configuration: config)
+        webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 380, height: visH), configuration: config)
         webView.navigationDelegate = self
-        webView.setValue(false, forKey: "drawsBackground")
+        // Opaque backing: paint Telegram's own content (its dark CSS sets the
+        // page background) instead of relying on a transparent WebView compositing
+        // over the panel. In a borderless .nonactivatingPanel the transparent path
+        // can silently fail to paint, leaving a dark-but-blank panel. Opaque always
+        // shows content; the collapsed state still hides the WebView to reveal the
+        // blue rail, so opacity here doesn't affect the collapsed look.
+        webView.setValue(true, forKey: "drawsBackground")
+        webView.wantsLayer = true
+        webView.layer?.isOpaque = true
         // Managed explicitly during expand/collapse; autoresizing disabled so the
         // UI never squishes mid-animation (no "breakage on collapse").
         webView.autoresizingMask = []
@@ -205,6 +227,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
         // airplane glyph shows on the 40px strip. Hiding up front made the collapse
         // read as an abrupt one-frame snap.
         webView.frame = NSRect(x: 0, y: 0, width: 380, height: visH)
+        // The blue rail is ONLY visible while collapsed. As soon as we expand,
+        // remove it from the view entirely so no blue can show across a wide panel.
+        railView.isHidden = expanded
         if expanded {
             webView.isHidden = false
             webView.alphaValue = 0   // fade in as it slides open
@@ -220,13 +245,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
             webView.animator().alphaValue = expanded ? 1 : 0
         }, completionHandler: { [weak self] in
             guard let self = self else { return }
-            if expanded {
+            // Re-read the LIVE state: a rapid hover in/out can schedule a collapse
+            // completion that fires AFTER the panel has re-expanded. If we're now
+            // expanded, leave the WebView visible. Only hide it when truly collapsed.
+            if self.isExpanded {
                 self.panel.makeKey()
                 self.webView.window?.makeFirstResponder(self.webView)
             } else {
                 // Fully collapsed: hide and reset opacity so the next expand fades in.
                 self.webView.isHidden = true
                 self.webView.alphaValue = 1
+                self.railView.isHidden = false
+                // Repaint the doodle to the rail's full current height so it fills
+                // the whole collapsed panel (layout may have settled since first paint).
+                self.paintRailWallpaper()
             }
         })
 
@@ -240,6 +272,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
             self?.pollHover()
         }
         try? "[hover] polling started\n".write(toFile: "/tmp/tg_panel.log", atomically: true, encoding: .utf8)
+
+        // Diagnostics: continuously log the WebView's REAL on-screen state so we
+        // can tell whether "blue when expanded" is a visibility bug (alpha/hidden)
+        // or a render bug (loaded but blank).
+        var probeTick = 0
+        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            let line = "STATE isExpanded=\(self.isExpanded) hidden=\(self.webView.isHidden) alpha=\(String(format: "%.2f", self.webView.alphaValue)) frame=\(self.webView.frame) inWindow=\(self.webView.window != nil) url=\(self.webView.url?.absoluteString ?? "")\n"
+            try? line.write(toFile: "/tmp/tg_state.log", atomically: true, encoding: .utf8)
+            probeTick += 1
+            if probeTick % 5 == 0 {
+                self.webView.evaluateJavaScript(Self.domProbeJS) { res, err in
+                    let out = err != nil ? "[probe] error=\(err!.localizedDescription)" : "[probe] \(res ?? "nil")"
+                    try? out.appendLine(to: "/tmp/tg_web_console.log")
+                }
+            }
+        }
     }
 
     private func pollHover() {
@@ -277,7 +326,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
 
     // MARK: WKNavigationDelegate
     func webView(_ webView: WKWebView, didFinish nav: WKNavigation!) {
+        try? "[load] didFinish url=\(webView.url?.absoluteString ?? "")\n".write(toFile: "/tmp/tg_web_console.log", atomically: true, encoding: .utf8)
         webView.evaluateJavaScript(Self.titleJS, completionHandler: nil)
+        // Inject the theme/wallpaper/avatar bridge via evaluateJavaScript — the same
+        // path titleJS uses and that works reliably (user-script injection was
+        // silently refused by WKWebView for this large script).
+        webView.evaluateJavaScript(Self.bridgeJS, completionHandler: nil)
+        // On-demand DOM probe (native-controlled timing; avoids fragile user-script
+        // intervals that die when Telegram's SPA navigates). Reports whether real
+        // Telegram content is in the DOM.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+            webView.evaluateJavaScript(Self.domProbeJS) { res, err in
+                if let e = err {
+                    try? "[probe] error=\(e.localizedDescription)\n".appendLine(to: "/tmp/tg_web_console.log")
+                    return
+                }
+                let desc = "\(res ?? "nil")"
+                try? "[probe] \(desc)\n".appendLine(to: "/tmp/tg_web_console.log")
+            }
+        }
     }
 
     func webView(_ webView: WKWebView, didFail nav: WKNavigation!, withError error: Error) {
@@ -299,6 +366,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
     })();
     """
 
+    // On-demand DOM probe: returns a plain snapshot of whether Telegram's SPA
+    // actually mounted content. Called via evaluateJavaScript from didFinish so
+    // timing is native-controlled (user-script intervals die on SPA navigation).
+    private static let domProbeJS = """
+    (function () {
+      try {
+        var d = document;
+        var b = d.body;
+        return {
+          ready: d.readyState,
+          kids: b ? b.childElementCount : -1,
+          len: (b && b.innerHTML || '').length,
+          login: !!(d.querySelector('form.auth-form') || d.querySelector('.auth') || d.querySelector('.login-form')),
+          chatList: !!(d.querySelector('.chatlist') || d.querySelector('.chatlist-parts') || d.querySelector('#column-left')),
+          colCenter: !!(d.querySelector('#column-center') || d.querySelector('.column-center')),
+          sH: b ? b.scrollHeight : 0,
+          cH: b ? b.clientHeight : 0
+        };
+      } catch (e) { return { error: String(e) }; }
+    })();
+    """
+
     // MARK: WKScriptMessageHandler
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard let body = message.body as? [String: Any] else { return }
@@ -309,9 +398,116 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
             let title = body["title"] as? String ?? "Telegram"
             let bodyText = body["body"] as? String ?? ""
             postNativeNotification(title: title, body: bodyText)
+        case "domstate":
+            break
+        case "avatar":
+            if let url = body["url"] as? String, let u = URL(string: url) {
+                loadRailAvatar(from: u)
+            }
+        case "wallpaper":
+            loadRailWallpaper()
         default:
+
             break
         }
+    }
+
+    private func loadRailAvatar(from url: URL) {
+        // Load asynchronously so it never blocks the UI. data: URLs are self-contained
+        // (no network); http(s)/blob: are fetched.
+        if url.scheme == "data", let data = try? Data(contentsOf: url), let img = NSImage(data: data) {
+            DispatchQueue.main.async { self.avatarView?.image = img }
+            return
+        }
+        let task = URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+            guard let self = self, let data = data, let img = NSImage(data: data) else { return }
+            DispatchQueue.main.async { self.avatarView?.image = img }
+        }
+        task.resume()
+    }
+
+    private func loadRailWallpaper() {
+        // Tile the bundled doodle wallpaper on the collapsed rail so it matches the
+        // chat's doodle theme. Prefers an explicit `doodles-wallpaper.png` beside the
+        // binary (drop Telegram's real tile there to use it); otherwise uses the bundled
+        // generated tile. Falls back to sage if neither is present.
+        let fm = FileManager.default
+        var candidates: [URL] = []
+        if let rp = Bundle.main.resourcePath {
+            candidates.append(URL(fileURLWithPath: rp).appendingPathComponent("doodles-wallpaper.png"))
+        }
+        if let ex = Bundle.main.executableURL {
+            candidates.append(ex.deletingLastPathComponent().appendingPathComponent("doodles-wallpaper.png"))
+        }
+        // Dev fallback: the source asset next to the project.
+        if let rp = Bundle.main.resourcePath {
+            candidates.append(URL(fileURLWithPath: rp).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("web/doodles-wallpaper.png"))
+        }
+        var chosen: URL?
+        for c in candidates {
+            if fm.fileExists(atPath: c.path) { chosen = c; break }
+        }
+        guard let url = chosen, let data = try? Data(contentsOf: url),
+              let img = NSImage(data: data) else {
+            return
+        }
+        self.railWallpaperImg = img
+        DispatchQueue.main.async { self.paintRailWallpaper() }
+    }
+
+    /// Paint the doodle tile across the rail's FULL current height. Called once the
+    /// image is loaded and again whenever the rail's layout (height) may have changed,
+    /// so the doodle always fills the whole collapsed panel (no empty bottom strip).
+    private func paintRailWallpaper() {
+        guard let img = railWallpaperImg else { return }
+        railView?.layoutSubtreeIfNeeded()
+        setRailWallpaper(img)
+    }
+
+    private func setRailWallpaper(_ img: NSImage) {
+        guard let layer = railView?.layer else {
+            return
+        }
+        guard let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return
+        }
+        let rv = railView!
+        // Render the tile into a full-size bitmap (40 x railHeight), then set as
+        // layer.contents. This is bulletproof in layer-backed/borderless panels;
+        // NSColor(patternImage:) can render as a solid color in such contexts.
+        // Use the railView's own frame height (what's actually on screen), not the
+        // layer.bounds which can be stale before layout settles.
+        var size = rv.frame.size
+        if size.height < 1 { size = layer.bounds.size }
+        if size.height < 1 { size = CGSize(width: 40, height: 844) }
+        let space = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(data: nil,
+                                  width: Int(size.width),
+                                  height: Int(size.height),
+                                  bitsPerComponent: 8,
+                                  bytesPerRow: 0,
+                                  space: space,
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            return
+        }
+        // Explicitly tile the 40xTileHeight image down the rail. We avoid relying on
+        // CGContext.draw(...,byTiling:) because it scales-to-fill in this context
+        // (producing a vertically stretched single motif). Multiple draw calls
+        // guarantee correct, repeated tiling.
+        let tileH = CGFloat(cg.height)
+        var y: CGFloat = 0
+        while y < size.height {
+            ctx.draw(cg, in: CGRect(x: 0, y: y, width: size.width, height: tileH))
+            y += tileH
+        }
+        guard let out = ctx.makeImage() else {
+            return
+        }
+        layer.backgroundColor = nil
+        layer.contents = out
+        layer.contentsGravity = .topLeft
+        layer.isOpaque = true
+        railView?.needsDisplay = true
     }
 
     private func updateBadge(from title: String) {
@@ -341,11 +537,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
     }
 
     // JS bridge
-    private static let bridgeJS = """
+    private static let pingJS = """
     (function () {
       try {
+        var h = window.webkit.messageHandlers.tgBridge;
+        (h || { postMessage: function(){} }).postMessage({ type: 'ping', ready: !!h });
+      } catch (e) {}
+    })();
+    """
+
+    private static let bridgeJS = """
+    (function () {
+      // web.telegram.org / WKWebView can briefly NOT have the bridge handler ready
+      // at .atDocumentEnd, so a naive `if (!handler) return` kills the whole script
+      // (which is why the wallpaper + avatar code never ran). Poll until it exists,
+      // then run exactly once.
+      function start() {
         var handler = window.webkit.messageHandlers.tgBridge;
-        if (!handler) return;
+        if (!handler) { setTimeout(start, 100); return; }
+        try {
+        handler.postMessage({ type: 'boot', ok: true });
         setInterval(function () {
           handler.postMessage({ type: 'title', title: document.title || '' });
         }, 2000);
@@ -359,48 +570,99 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
           Patched.prototype = Real.prototype;
           window.Notification = Patched;
         }
-        // Force Telegram Web into its official DARK theme so the sidebar matches the
-        // native Telegram macOS client (web.telegram.org otherwise renders light and
-        // looks nothing like the app). Injects the dark palette as :root CSS vars +
-        // base colors, reapplied on a timer + MutationObserver because Telegram
-        // rebuilds nodes on navigation.
+        // Match the official Telegram LIGHT theme (as shown in the reference: white
+        // header, light surfaces, #3390EC blue accents). The chat wallpaper (the
+        // sage-green pattern in the reference) is synced from the user's account, so
+        // we only need to pin the light palette + color-scheme. Without this pin,
+        // web.telegram.org can fall back to the account's night theme and render
+        // dark — which looked wrong against the rest of the (light) Telegram UI.
         (function () {
           try {
             var css = [
-              'html, body { background-color: #0e1621 !important; color-scheme: dark !important; }',
+              '/* Keep Telegram in its LIGHT palette (prevents dark-theme fallback).',
+              '   Do NOT override the chat background — the open conversation uses',
+              '   your synced "Doodles" wallpaper (mint-green doodle pattern). Only',
+              '   the chat LIST (All Chats) is forced white so it reads cleanly in',
+              '   the thin panel. */',
+              'html { color-scheme: light !important; }',
+              '/* Chat LIST (All Chats) — solid white. */',
+              '#column-left, .column-left,',
+              '.chatlist-parts, .folders-scrollable { background-color: #ffffff !important; }',
               ':root {',
-              '  --surface-color: #17212b !important;',
-              '  --bg-color: #0e1621 !important;',
-              '  --background-color: #0e1621 !important;',
-              '  --panel-background: #17212b !important;',
-              '  --chatlist-background: #17212b !important;',
-              '  --sidebar-background: #17212b !important;',
-              '  --scrollbar-color: #5d6d7a #17212b !important;',
-              '  --hover-color: #202b36 !important;',
-              '  --active-color: #2b5278 !important;',
-              '  --primary-color: #2ea6ff !important;',
-              '  --text-color: #ffffff !important;',
-              '  --secondary-text-color: #7d8e9b !important;',
+              '  --chatlist-background: #ffffff !important;',
+              '  --primary-color: #3390ec !important;',
+              '  --active-color: #3390ec !important;',
+              '  --text-color: #000000 !important;',
+              '  --secondary-text-color: #707991 !important;',
               '}'
-            ].join('\\n');
+            ].join(' ');
             function apply() {
-              var id = 'tg-dark-theme';
+              var id = 'tg-light-theme';
               var el = document.getElementById(id);
               if (!el) {
                 el = document.createElement('style');
                 el.id = id;
-                document.documentElement.appendChild(el);
+                (document.head || document.documentElement).appendChild(el);
               }
               el.textContent = css;
-            }
-            apply();
+              // (No wallpaper.) The chat list + chats use Telegram's default white
+              // light surfaces — nothing to override here. Only the user's avatar is
+              // extracted (for the collapsed rail) and reported below.
+              // Report the user's own avatar (for the collapsed rail). Telegram lazy-loads
+              // pictures via data-src (http url) with a tiny data-URI placeholder, and may
+              // render avatars as <canvas>/<img> inside .avatar-photo. Prefer a self-contained
+              // data: URL (Swift can load it directly); convert blob: URLs to data: via fetch.
+              var url = null;
+              var cands = [];
+              try {
+                var nodes = document.querySelectorAll('.avatar-photo img, .avatar-photo canvas, img.avatar-photo, .sidebar-header .avatar-photo, .chatlist-chat .avatar-photo, .topbar .avatar-photo, .account .avatar-photo');
+                nodes.forEach(function (n) {
+                  var u = (n.getAttribute && (n.getAttribute('src') || n.getAttribute('data-src') || n.getAttribute('srcset'))) || n.src || '';
+                  if (u) cands.push(u.slice(0, 60));
+                  if (u && u.indexOf('data:') === 0 && !url) url = u;            // data: wins (self-contained)
+                  else if (u && u.indexOf('http') === 0 && !url) url = u;        // real CDN
+                });
+                // No data:/http found but we have a blob: — convert it to a data URL.
+                if (!url) {
+                  for (var ci = 0; ci < nodes.length; ci++) {
+                    var bu = nodes[ci].src || (nodes[ci].getAttribute && nodes[ci].getAttribute('src')) || '';
+                    if (bu.indexOf('blob:') === 0) {
+                      (function (blobUrl) {
+                        try {
+                          fetch(blobUrl).then(function (r) { return r.blob(); }).then(function (b) {
+                            var fr = new FileReader();
+                            fr.onload = function () { window.webkit.messageHandlers.tgBridge.postMessage({ type: 'avatar', url: String(fr.result) }); };
+                            fr.readAsDataURL(b);
+                          }).catch(function () {});
+                        } catch (e) {}
+                      })(bu);
+                      break;
+                    }
+                  }
+                }
+                if (url) window.webkit.messageHandlers.tgBridge.postMessage({ type: 'avatar', url: url });
+                // The collapsed rail shows the doodle wallpaper (bundled asset in the app).
+                // Tell Swift once to tile it; Swift reads the bundled/generated tile itself.
+                if (!window.__railWpLoaded) {
+                  window.__railWpLoaded = true;
+                  try { window.webkit.messageHandlers.tgBridge.postMessage({ type: 'wallpaper' }); } catch (e) {}
+                }
+              } catch (e) {}
+              apply();
             setInterval(apply, 2000);
             if (window.MutationObserver) {
-              new MutationObserver(apply).observe(document.documentElement, { childList: true, subtree: true });
+              // Observe <body> (NOT documentElement). apply() writes into <head>, so
+              // watching body avoids an infinite mutation storm: our own style write
+              // would otherwise retrigger the observer forever, pegging the
+              // WebContent process and freezing the page (blank panel, no JS).
+              new MutationObserver(apply).observe(document.body, { childList: true, subtree: true });
             }
-          } catch (e) {}
+          } catch (e) {
+          }
         })();
       } catch (e) {}
+      }
+      start();
     })();
     """
 
@@ -431,6 +693,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
       } catch (e) {}
     })();
     """
+}
+
+private extension String {
+    func appendLine(to path: String) {
+        if let fh = FileHandle(forWritingAtPath: path) {
+            fh.seekToEndOfFile()
+            fh.write(Data((self + "\n").utf8))
+            fh.closeFile()
+        } else {
+            try? (self + "\n").write(toFile: path, atomically: true, encoding: .utf8)
+        }
+    }
 }
 
 extension AppDelegate: UNUserNotificationCenterDelegate {

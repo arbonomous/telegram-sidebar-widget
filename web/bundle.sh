@@ -12,6 +12,11 @@ mkdir -p "$MACOS" "$RES"
 
 "$SRC_DIR/build.sh" "$MACOS/$NAME"
 
+# Bundle the doodle wallpaper tile as a resource the app loads at runtime.
+if [ -f "$SRC_DIR/doodles-wallpaper.png" ]; then
+  cp "$SRC_DIR/doodles-wallpaper.png" "$RES/doodles-wallpaper.png"
+fi
+
 cat > "$OUT/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0"><dict>
