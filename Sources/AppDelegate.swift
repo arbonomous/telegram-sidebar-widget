@@ -302,26 +302,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
         let mainBounds = CGDisplayBounds(CGMainDisplayID())
         let screenMaxX = CGFloat(mainBounds.maxX)
         let pf = panel.frame
+        // Expand ONLY when the cursor is actually over our own panel — the 40px
+        // collapsed rail, or the (already) expanded panel. No preemptive buffer to
+        // the left: that buffer used to spring the panel open when the user moved
+        // toward another window's close button near the right edge, blocking it.
         let inside = mouse.x >= pf.minX && mouse.x <= pf.maxX && mouse.y >= pf.minY && mouse.y <= pf.maxY
-        let nearEdge = mouse.x >= (screenMaxX - 70)
-        let inActiveZone = inside || nearEdge
+        let inActiveZone = inside
 
-        // Once the cursor fully leaves the edge zone, release the dismiss lock so
-        // normal hover-to-expand resumes on the next approach.
+        // Once the cursor fully leaves our panel, release the dismiss lock so normal
+        // hover-to-expand resumes on the next approach to the rail.
         if !inActiveZone { dismissedUntilLeave = false }
 
         if inActiveZone && !dismissedUntilLeave {
             collapseGrace?.invalidate()
             collapseGrace = nil
             if !isExpanded { setExpanded(true) }
-        } else if isExpanded {
+        } else if isExpanded && !inside {
             if collapseGrace == nil {
                 collapseGrace = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { [weak self] _ in
                     self?.collapseGrace = nil
                     let m = NSEvent.mouseLocation
                     let f = self?.panel.frame ?? .zero
                     let stillInside = m.x >= f.minX && m.x <= f.maxX && m.y >= f.minY && m.y <= f.maxY
-                    if !stillInside && m.x < (screenMaxX - 70) { self?.setExpanded(false) }
+                    if !stillInside { self?.setExpanded(false) }
                 }
             }
         }
