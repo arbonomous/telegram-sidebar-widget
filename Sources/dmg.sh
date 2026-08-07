@@ -5,7 +5,7 @@ set -euo pipefail
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SRC_DIR/.." && pwd)"
 NAME="SidePiece"
-APP="$ROOT/$NAME.app"
+APP="$ROOT/build/$NAME.app"
 STAGE="$ROOT/build/dmg-stage"
 DMG="$ROOT/dist/SidePiece.dmg"
 

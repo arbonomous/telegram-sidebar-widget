@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Bundle the WKWebView variant as a .app (LSUIElement accessory, no Dock icon).
+# Builds into the gitignored build/ dir, then copies to /Applications — the repo
+# root stays clean (no stray .app committed or left behind).
 set -euo pipefail
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 NAME="SidePiece"
-OUT="$SRC_DIR/../$NAME.app"
+OUT="$SRC_DIR/../build/$NAME.app"
 MACOS="$OUT/Contents/MacOS"
 RES="$OUT/Contents/Resources"
 
@@ -51,4 +53,8 @@ if [ -f "$LAUNCH_AGENT_SRC" ]; then
   launchctl load "$LAUNCH_AGENT_DST" 2>/dev/null || true
 fi
 
-echo "Built $OUT — moved to /Applications and set to auto-launch at login."
+# Copy the built .app to /Applications (the repo-root copy is not kept).
+rm -rf "/Applications/$NAME.app"
+cp -R "$OUT" "/Applications/$NAME.app"
+
+echo "Built $OUT, copied to /Applications, and set to auto-launch at login."
