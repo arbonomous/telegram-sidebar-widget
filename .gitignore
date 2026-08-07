@@ -1,18 +1,16 @@
 # Hermes session context
 .hermes/
 
-# Built binaries / bundles / distributables
-TelegramSidebarWeb
-TelegramSidebarWeb.app/
+# Built / distributable artifacts (all regenerable from source)
 SidePiece
 SidePiece.app/
 SidePiece.dmg
+dist/
 build/
 *.dmg
 
 # Compiled test executables
 Tests/backtest
-Tests/display_probe
 Tests/*.o
 
 # Logs

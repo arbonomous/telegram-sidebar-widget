@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3D9BF5"/>
+      <stop offset="1" stop-color="#2A7FE0"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#EEF3F9"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="22" flood-color="#0B3B73" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+
+  <!-- App tile (rounded square, brand blue) -->
+  <rect x="32" y="32" width="960" height="960" rx="220" ry="220" fill="url(#tile)"/>
+
+  <!-- White "screen" centered, leaving room on the right for the sidebar piece -->
+  <g filter="url(#soft)">
+    <rect x="150" y="200" width="600" height="624" rx="64" ry="64" fill="url(#screen)"/>
+  </g>
+
+  <!-- The side piece: a DARKER blue vertical rail hugging the right edge -->
+  <rect x="766" y="200" width="150" height="624" rx="48" ry="48" fill="#1E63C8"/>
+
+  <!-- Chat hints on the screen (rows with a bit more contrast) -->
+  <rect x="200" y="262" width="360" height="40" rx="20" fill="#C2D4EA"/>
+  <rect x="200" y="338" width="300" height="40" rx="20" fill="#D2E0F0"/>
+  <rect x="200" y="414" width="380" height="40" rx="20" fill="#C2D4EA"/>
+  <rect x="200" y="490" width="250" height="40" rx="20" fill="#D2E0F0"/>
+
+  <!-- Notification dot on the rail -->
+  <circle cx="841" cy="270" r="26" fill="#FFFFFF"/>
+  <circle cx="841" cy="270" r="14" fill="#FF3B30"/>
+</svg>

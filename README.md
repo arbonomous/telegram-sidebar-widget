@@ -26,37 +26,18 @@ between launches.
 - macOS 12.0+
 - Xcode Command Line Tools (`swiftc`): `xcode-select --install`
 
-## Build
+## Build & install
 
 ```bash
-cd web
-./build.sh          # produces ../SidePiece (a runnable binary)
+bash build.sh          # build + bundle .app, install to /Applications,
+                       # auto-launch at login, rebuild dist/SidePiece.dmg
 ```
 
-## Run (from source)
+- `bash build.sh --icon` — also regenerate the icon from `SidePiece.svg`
+- `bash build.sh --dmg`   — only rebuild `dist/SidePiece.dmg` from the existing `.app`
 
-```bash
-./SidePiece
-```
-
-- Hover the strip on the right edge → it expands.
-- Move the cursor away → it collapses.
-- First launch: log into Telegram Web inside the panel.
-
-## Package as a real .app (Login Item)
-
-```bash
-cd web
-./bundle.sh          # produces ../SidePiece.app
-```
-
-Move `SidePiece.app` to `/Applications`. To have it start automatically at
-login (and relaunch if it crashes), install the bundled LaunchAgent:
-
-```bash
-cp web/com.sidepiece.app.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.sidepiece.app.plist
-```
+After install, hover the strip on the right edge → it expands; move the cursor
+away → it collapses. First launch: log into Telegram Web inside the panel.
 
 The bundle copies the official `Logo.png` next to the executable; the rail
 loads it at runtime. (Bundle resource lookup was unreliable in this project,
@@ -77,10 +58,10 @@ run in parallel.
 ## Distribute as a DMG
 
 ```bash
-bash web/dmg.sh          # builds the .app, then ./SidePiece.dmg
+bash build.sh --dmg     # produces dist/SidePiece.dmg
 ```
 
-Send `SidePiece.dmg` to a friend — they open it and drag
+Send `dist/SidePiece.dmg` to a friend — they open it and drag
 `SidePiece.app` into Applications.
 
 ## Tests
@@ -98,18 +79,25 @@ access and a window server (run on a logged-in Mac, not headless CI).
 ## Project layout
 
 ```
-web/
-  AppDelegate.swift   # panel, rail, hover/animation, Telegram-Web bridge, --selftest
-  main.swift          # NSApplication entry point (accessory policy)
-  build.sh            # swiftc build
-  bundle.sh           # package as .app (icon + logo)
-  dmg.sh              # package as distributable .dmg
-  Logo.png            # official Telegram logo (rendered on the collapsed rail)
-build/AppIcon.icns    # app icon (generated from Logo.png)
-Logo.svg              # vector source for the logo
+Sources/                  # the Swift app source (not a website)
+  AppDelegate.swift       # panel, rail, hover/animation, Telegram-Web bridge, --selftest
+  main.swift              # NSApplication entry point (accessory policy)
+  build.sh               # swiftc build
+  bundle.sh              # package as .app (icon + logo)
+  build-icon.sh          # regenerate build/AppIcon.icns from SidePiece.svg
+  dmg.sh                 # package as distributable .dmg
+  com.sidepiece.app.plist# LaunchAgent (auto-launch at login)
+build/                    # regenerable artifacts (git-ignored)
+  AppIcon.icns            # app icon (generated from SidePiece.svg)
+dist/                     # distributables (git-ignored)
+  SidePiece.dmg
+Logo.png                  # official Telegram logo (rendered on the collapsed rail)
+Logo.svg                  # vector source for the logo
+SidePiece.svg             # app-icon source (tracked)
 Tests/
-  backtest.swift      # end-to-end logic harness (20/20 checks)
-  render_smoke.sh     # render smoke-test (catches blank/white regressions)
+  backtest.swift          # end-to-end logic harness (20/20 checks)
+  render_smoke.sh         # render smoke-test (catches blank/white regressions)
+build.sh                  # one-command front door (build + install + dmg)
 ```
 
 ## How it works

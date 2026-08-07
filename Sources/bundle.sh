@@ -7,6 +7,11 @@ OUT="$SRC_DIR/../$NAME.app"
 MACOS="$OUT/Contents/MacOS"
 RES="$OUT/Contents/Resources"
 
+# Ensure the app icon exists (regenerate from SidePiece.svg if missing).
+if [ ! -f "$SRC_DIR/../build/AppIcon.icns" ]; then
+  bash "$SRC_DIR/build-icon.sh"
+fi
+
 rm -rf "$OUT"
 mkdir -p "$MACOS" "$RES"
 
@@ -16,11 +21,9 @@ mkdir -p "$MACOS" "$RES"
 # path at runtime — Bundle resource lookup was unreliable in this project).
 if [ -f "$SRC_DIR/../Logo.png" ]; then
   cp "$SRC_DIR/../Logo.png" "$MACOS/Logo.png"
-elif [ -f "$SRC_DIR/Logo.png" ]; then
-  cp "$SRC_DIR/Logo.png" "$MACOS/Logo.png"
 fi
 
-# App icon (generated from build/SidePiece.svg).
+# App icon (generated from SidePiece.svg in the repo root).
 if [ -f "$SRC_DIR/../build/AppIcon.icns" ]; then
   cp "$SRC_DIR/../build/AppIcon.icns" "$RES/AppIcon.icns"
 fi
