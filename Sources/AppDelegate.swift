@@ -52,6 +52,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
     private var isExpanded = false
     private var hoverTimer: Timer?
     private var collapseGrace: Timer?
+    private var closeButton: NSButton!
+    private var dismissedUntilLeave = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Single-instance guard: only one interactive SidePiece may run and dock
@@ -106,6 +108,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
     @objc private func togglePanel() { setExpanded(!isExpanded) }
     @objc private func reload() { webView.reload() }
     @objc private func quit() { NSApplication.shared.terminate(nil) }
+    @objc private func collapseAndDismiss() {
+        setExpanded(false)
+        dismissedUntilLeave = true
+    }
 
     // MARK: panel + collapsed rail
     private func setupPanel() {
@@ -180,6 +186,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
         panel.contentView?.layer?.masksToBounds = true
         panel.contentView?.addSubview(webView)
 
+        // Close (✕) button pinned top-right of the expanded panel. Gives the user
+        // a real "close" target instead of fighting the hover-expand. Clicking it
+        // collapses AND sets dismissedUntilLeave, so it won't spring back open
+        // while the cursor is still in the edge zone (the "I clicked X but it
+        // re-expands" trap). The lock releases once the cursor leaves the edge.
+        let cb = NSButton(frame: NSRect(x: 380 - 30, y: visH - 30, width: 24, height: 24))
+        cb.title = "✕"
+        cb.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        cb.isBordered = false
+        cb.wantsLayer = true
+        cb.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.30).cgColor
+        cb.layer?.cornerRadius = 6
+        cb.contentTintColor = .white
+        cb.target = self
+        cb.action = #selector(collapseAndDismiss)
+        cb.toolTip = "Close (collapse panel)"
+        cb.isHidden = true
+        panel.contentView?.addSubview(cb)
+        closeButton = cb
+
         // Telegram Web's "All Chats" list is a virtualized scroller that can refuse
         // to scroll inside an embedded WKWebView; force vertical scrolling on.
         if let scrollView = (webView.subviews.compactMap { $0 as? NSScrollView }).first {
@@ -241,6 +267,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
 
         webView.frame = NSRect(x: 0, y: 0, width: 380, height: visH)
         railView.isHidden = expanded
+        closeButton?.isHidden = !expanded
         if expanded { webView.isHidden = false }   // always reveal on expand (collapse hides it)
         webView.alphaValue = expanded ? 0 : 1
 
@@ -277,8 +304,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
         let pf = panel.frame
         let inside = mouse.x >= pf.minX && mouse.x <= pf.maxX && mouse.y >= pf.minY && mouse.y <= pf.maxY
         let nearEdge = mouse.x >= (screenMaxX - 70)
+        let inActiveZone = inside || nearEdge
 
-        if inside || nearEdge {
+        // Once the cursor fully leaves the edge zone, release the dismiss lock so
+        // normal hover-to-expand resumes on the next approach.
+        if !inActiveZone { dismissedUntilLeave = false }
+
+        if inActiveZone && !dismissedUntilLeave {
             collapseGrace?.invalidate()
             collapseGrace = nil
             if !isExpanded { setExpanded(true) }
