@@ -14,6 +14,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
 
     static let shared = AppDelegate()
 
+    // Deterministic WebView data store (UUID-based). Using a fixed identifier —
+    // instead of the default per-bundle-id store — keeps the Telegram login
+    // session intact across app renames and reinstalls. See migrateLegacySessionIfNeeded().
+    private static let sessionStoreID = UUID(uuidString: "6F3A2B9C-1D4E-4F8A-9B7C-2E5D8A1C0F33")!
+
     private var panel: SidebarPanel!
     private var webView: WKWebView!
     private var railView: NSView!
@@ -121,8 +126,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
     // MARK: web view
     private func setupWebView() {
         let visH = CGFloat(CGDisplayBounds(CGMainDisplayID()).height)
+        migrateLegacySessionIfNeeded()
         let config = WKWebViewConfiguration()
-        config.websiteDataStore = .default()
+        config.websiteDataStore = WKWebsiteDataStore(forIdentifier: Self.sessionStoreID)
         let controller = WKUserContentController()
         controller.addUserScript(WKUserScript(source: Self.bridgeJS, injectionTime: .atDocumentEnd, forMainFrameOnly: false))
         controller.addUserScript(WKUserScript(source: Self.scrollFixJS, injectionTime: .atDocumentEnd, forMainFrameOnly: false))
@@ -159,6 +165,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
             return event
         }
         NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .scrollWheel], handler: activateInside)
+    }
+
+    // One-time migration: the session used to live in the per-bundle-id WebKit
+    // store, which moved when the app was renamed (TelegramSidebarWeb ->
+    // SidePiece) and got orphaned — forcing a re-login every rebuild/rename.
+    // Move that data into the deterministic store (sessionStoreID) so the login
+    // survives renames/reinstalls. Idempotent: only runs when needed.
+    private func migrateLegacySessionIfNeeded() {
+        let fm = FileManager.default
+        let webkitDir = NSHomeDirectory() + "/Library/WebKit"
+        let candidates = ["TelegramSidebarWeb", "com.user.telegram-sidebar-web"]
+        let destRoot = webkitDir + "/\(Self.sessionStoreID.uuidString)"
+        let destData = destRoot + "/WebsiteData"
+        // The deterministic store dir doesn't exist yet (it's created lazily when
+        // the WKWebView is instantiated below), so we can move the whole folder.
+        guard !fm.fileExists(atPath: destData) else { return }
+        for name in candidates where name != Self.sessionStoreID.uuidString {
+            let src = webkitDir + "/" + name + "/WebsiteData"
+            guard fm.fileExists(atPath: src) else { continue }
+            try? fm.createDirectory(atPath: destRoot, withIntermediateDirectories: true)
+            try? fm.moveItem(atPath: src, toPath: destData)
+            // Drop the now-empty orphaned store dir.
+            try? fm.removeItem(atPath: webkitDir + "/" + name)
+            break
+        }
     }
 
     // MARK: expand / collapse

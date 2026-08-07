@@ -50,12 +50,23 @@ cd web
 ./bundle.sh          # produces ../SidePiece.app
 ```
 
-Move `SidePiece.app` to `/Applications`, then add it to
-**System Settings ▸ General ▸ Login Items** so it starts at login.
+Move `SidePiece.app` to `/Applications`. To have it start automatically at
+login (and relaunch if it crashes), install the bundled LaunchAgent:
+
+```bash
+cp web/com.sidepiece.app.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.sidepiece.app.plist
+```
 
 The bundle copies the official `Logo.png` next to the executable; the rail
 loads it at runtime. (Bundle resource lookup was unreliable in this project,
 so the logo is loaded from an explicit file path.)
+
+**Session persistence:** the WebView's data store is pinned to a fixed
+identifier (`WKWebsiteDataStore(forIdentifier:)`), so your Telegram login
+survives app renames, rebuilds, and reinstalls — log in once and stay logged
+in. The first launch migrates any session left behind by the old
+`TelegramSidebarWeb` build.
 
 ## Distribute as a DMG
 

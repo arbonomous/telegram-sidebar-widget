@@ -40,4 +40,12 @@ cat > "$OUT/Contents/Info.plist" <<PLIST
 </dict></plist>
 PLIST
 
-echo "Built $OUT — drag to /Applications, add to Login Items."
+# Install the LaunchAgent so the app auto-starts at login (and relaunches on crash).
+LAUNCH_AGENT_SRC="$SRC_DIR/com.sidepiece.app.plist"
+LAUNCH_AGENT_DST="$HOME/Library/LaunchAgents/com.sidepiece.app.plist"
+if [ -f "$LAUNCH_AGENT_SRC" ]; then
+  cp "$LAUNCH_AGENT_SRC" "$LAUNCH_AGENT_DST"
+  launchctl load "$LAUNCH_AGENT_DST" 2>/dev/null || true
+fi
+
+echo "Built $OUT — moved to /Applications and set to auto-launch at login."
