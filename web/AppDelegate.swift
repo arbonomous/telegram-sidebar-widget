@@ -19,6 +19,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
     // session intact across app renames and reinstalls. See migrateLegacySessionIfNeeded().
     private static let sessionStoreID = UUID(uuidString: "6F3A2B9C-1D4E-4F8A-9B7C-2E5D8A1C0F33")!
 
+    // Single-instance guard. Keyed to a fixed product lock path (not the bundle
+    // name) so it holds across renames/rebuilds — only one interactive SidePiece
+    // may dock to the edge at a time. Diagnostic modes (--selftest/--capture) are
+    // exempt so the test harness can run in parallel. The lock fd is kept open
+    // for the process lifetime (never closed) so the advisory lock holds.
+    private struct SingleInstanceLock {
+        static let lockPath = NSHomeDirectory() + "/Library/Application Support/SidePiece/.running"
+        static var lockFD: Int32 = -1
+        static func isAlreadyRunning() -> Bool {
+            let fd = open(lockPath, O_RDONLY)
+            guard fd != -1 else { return false }
+            defer { close(fd) }
+            var lock = flock(l_start: 0, l_len: 0, l_pid: 0, l_type: Int16(F_WRLCK), l_whence: 0)
+            return fcntl(fd, F_GETLK, &lock) != -1 && lock.l_type != Int16(F_UNLCK)
+        }
+        static func acquire() {
+            try? FileManager.default.createDirectory(atPath: (lockPath as NSString).deletingLastPathComponent,
+                                                     withIntermediateDirectories: true)
+            lockFD = open(lockPath, O_WRONLY | O_CREAT, 0o644)
+            if lockFD != -1 {
+                var lock = flock(l_start: 0, l_len: 0, l_pid: 0, l_type: Int16(F_WRLCK), l_whence: 0)
+                _ = fcntl(lockFD, F_SETLK, &lock)   // held until process exit (fd stays open)
+            }
+        }
+    }
+
     private var panel: SidebarPanel!
     private var webView: WKWebView!
     private var railView: NSView!
@@ -28,6 +54,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
     private var collapseGrace: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Single-instance guard: only one interactive SidePiece may run and dock
+        // to the edge. Diagnostic modes (--selftest) are exempt so the test
+        // harness can run alongside the real app and across rebuilds.
+        let isDiagnostics = CommandLine.arguments.contains("--selftest")
+        if !isDiagnostics && SingleInstanceLock.isAlreadyRunning() {
+            NSApplication.shared.terminate(nil)
+            return
+        }
+        if !isDiagnostics { SingleInstanceLock.acquire() }
         NSApp.setActivationPolicy(.accessory)
         if Self.canUseNotifications {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {

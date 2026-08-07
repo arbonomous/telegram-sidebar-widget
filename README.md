@@ -68,6 +68,12 @@ survives app renames, rebuilds, and reinstalls — log in once and stay logged
 in. The first launch migrates any session left behind by the old
 `TelegramSidebarWeb` build.
 
+**Single instance:** only one interactive SidePiece may run at a time — a
+process-level advisory lock (`~/Library/Application Support/SidePiece/.running`)
+blocks a second launch, which previously caused two overlapping widgets/sessions
+on the edge. Diagnostic mode (`--selftest`) is exempt so the test harness can
+run in parallel.
+
 ## Distribute as a DMG
 
 ```bash
