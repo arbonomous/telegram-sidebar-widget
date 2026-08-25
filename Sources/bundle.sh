@@ -54,8 +54,16 @@ if [ -f "$LAUNCH_AGENT_SRC" ]; then
   launchctl load "$LAUNCH_AGENT_DST" 2>/dev/null || true
 fi
 
-# Copy the built .app to /Applications (the repo-root copy is not kept).
+# Copy the built .app to /Applications (the repo-root copy is not kept). Clear
+# Gatekeeper/FileProvider flags on BOTH the source and the copy so macOS never
+# re-prompts "are you sure you want to open this?" after a rebuild. The build
+# lives in an iCloud-synced folder, so copies carry a quarantine flag and a
+# fileprovider placeholder xattr — cleared here for a clean local app.
+xattr -dr com.apple.quarantine "$OUT" 2>/dev/null || true
+xattr -dr 'com.apple.fileprovider.fpfs#P' "$OUT" 2>/dev/null || true
 rm -rf "/Applications/$NAME.app"
 cp -R "$OUT" "/Applications/$NAME.app"
+xattr -dr com.apple.quarantine "/Applications/$NAME.app" 2>/dev/null || true
+xattr -dr 'com.apple.fileprovider.fpfs#P' "/Applications/$NAME.app" 2>/dev/null || true
 
 echo "Built $OUT, copied to /Applications, and set to auto-launch at login."
