@@ -71,7 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
             return
         }
         if !isDiagnostics { SingleInstanceLock.acquire() }
-        NSApp.setActivationPolicy(.accessory)
+        NSApp.setActivationPolicy(.regular)   // Dock tile + "open" indicator; bar stays borderless/non-activating
         if Self.canUseNotifications {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }

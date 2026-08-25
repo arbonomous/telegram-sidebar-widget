@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bundle the WKWebView variant as a .app (LSUIElement accessory, no Dock icon).
+# Bundle the WKWebView variant as a normal .app (Dock tile + "open" indicator).
 # Builds into the gitignored build/ dir, then copies to /Applications — the repo
 # root stays clean (no stray .app committed or left behind).
 set -euo pipefail
@@ -40,7 +40,6 @@ cat > "$OUT/Contents/Info.plist" <<PLIST
   <key>CFBundleVersion</key><string>1.0</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
-  <key>LSUIElement</key><string>true</string>
   <key>NSRequiresAquaSystemAppearance</key><string>false</string>
 </dict></plist>
 PLIST
