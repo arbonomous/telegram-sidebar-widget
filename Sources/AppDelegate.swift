@@ -81,7 +81,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
         setupStatusItem()
         setupPanel()
         setupWebView()
+        // Start collapsed: the blue 40px rail with logo must be visible immediately
+        // on launch. The webView sits on top of the rail, so hide it (and show the
+        // rail) up front — otherwise a blank white strip shows until the first
+        // expand/collapse paints the correct state.
+        webView.isHidden = true
+        railView.isHidden = false
+        webView.alphaValue = 1
+        isExpanded = false
         webView.load(URLRequest(url: URL(string: "https://web.telegram.org/k")!))
+        // Diagnostic: prove the collapsed rail (not a blank white strip) is what
+        // paints first on launch.
+        try? "initial: isExpanded=\(isExpanded) railVisible=\(!railView.isHidden) webHidden=\(webView.isHidden) railBG=\(railView.layer?.backgroundColor != nil)\n"
+            .write(toFile: "/tmp/tg_init.log", atomically: true, encoding: .utf8)
         // --selftest: after load settles, render the WebView and prove it isn't
         // blank, then quit. Otherwise, start hover polling.
         if CommandLine.arguments.contains("--selftest") {
