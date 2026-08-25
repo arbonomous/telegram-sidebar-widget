@@ -50,6 +50,7 @@ LAUNCH_AGENT_SRC="$SRC_DIR/com.sidepiece.app.plist"
 LAUNCH_AGENT_DST="$HOME/Library/LaunchAgents/com.sidepiece.app.plist"
 if [ -f "$LAUNCH_AGENT_SRC" ]; then
   cp "$LAUNCH_AGENT_SRC" "$LAUNCH_AGENT_DST"
+  launchctl unload "$LAUNCH_AGENT_DST" 2>/dev/null || true
   launchctl load "$LAUNCH_AGENT_DST" 2>/dev/null || true
 fi
 

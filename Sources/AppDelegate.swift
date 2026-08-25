@@ -54,6 +54,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
     private var collapseGrace: Timer?
     private var closeButton: NSButton!
     private var dismissedUntilLeave = false
+    private var panelHidden = false
+    private var hideMenuItem: NSMenuItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Single-instance guard: only one interactive SidePiece may run and dock
@@ -99,19 +101,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
             btn.action = #selector(togglePanel)
         }
         let menu = NSMenu()
+        let hide = NSMenuItem(title: "Hide SidePiece", action: #selector(toggleHide), keyEquivalent: "")
+        hide.target = self
+        hideMenuItem = hide
+        menu.addItem(hide)
         menu.addItem(NSMenuItem(title: "Expand / Collapse", action: #selector(togglePanel), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Reload", action: #selector(reload), keyEquivalent: "r"))
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q"))
         statusItem.menu = menu
     }
 
-    @objc private func togglePanel() { setExpanded(!isExpanded) }
+    // Show/hide the whole docked bar. When hidden the panel is removed from the
+    // screen entirely (no rail, no web view) — a real "close". The menu-bar ✈
+    // (or "Show SidePiece") brings it back. Clicking ✕ does the same.
+    @objc private func toggleHide() { panelHidden ? showPanel() : hidePanel() }
+    @objc private func hidePanel() {
+        guard !panelHidden else { return }
+        panelHidden = true
+        dismissedUntilLeave = false
+        panel.orderOut(nil)
+        hideMenuItem?.title = "Show SidePiece"
+    }
+    @objc private func showPanel() {
+        guard panelHidden else { return }
+        panelHidden = false
+        setExpanded(false)
+        panel.orderFrontRegardless()
+        hideMenuItem?.title = "Hide SidePiece"
+    }
+
+    @objc private func togglePanel() {
+        if panelHidden { showPanel(); return }
+        setExpanded(!isExpanded)
+    }
     @objc private func reload() { webView.reload() }
     @objc private func quit() { NSApplication.shared.terminate(nil) }
-    @objc private func collapseAndDismiss() {
-        setExpanded(false)
-        dismissedUntilLeave = true
-    }
 
     // MARK: panel + collapsed rail
     private func setupPanel() {
@@ -200,8 +224,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
         cb.layer?.cornerRadius = 6
         cb.contentTintColor = .white
         cb.target = self
-        cb.action = #selector(collapseAndDismiss)
-        cb.toolTip = "Close (collapse panel)"
+        cb.action = #selector(hidePanel)
+        cb.toolTip = "Hide SidePiece (click the ✈ in the menu bar to bring it back)"
         cb.isHidden = true
         panel.contentView?.addSubview(cb)
         closeButton = cb
@@ -298,6 +322,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
     }
 
     private func pollHover() {
+        guard !panelHidden else { return }
         let mouse = NSEvent.mouseLocation
         let mainBounds = CGDisplayBounds(CGMainDisplayID())
         let screenMaxX = CGFloat(mainBounds.maxX)
@@ -483,10 +508,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
             el.textContent = css;
           }
           apply();
-          setInterval(apply, 2000);
-          if (window.MutationObserver) {
-            new MutationObserver(apply).observe(document.body, { childList: true, subtree: true });
-          }
+          // Re-apply on a gentle cadence only — no DOM mutation observer. The
+          // observer over Telegram's constantly-mutating body spun a CPU core
+          // and made the Mac laggy; a 1.5s interval is plenty for a static theme.
+          setInterval(apply, 1500);
         } catch (e) {}
       }
       start();
@@ -507,10 +532,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
             });
         }
         fix();
-        setInterval(fix, 1000);
-        if (window.MutationObserver) {
-          new MutationObserver(function () { fix(); }).observe(document.body, { childList: true, subtree: true });
-        }
+        setInterval(fix, 2000);
       } catch (e) {}
     })();
     """
