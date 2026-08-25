@@ -63,6 +63,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
         // harness can run alongside the real app and across rebuilds.
         let isDiagnostics = CommandLine.arguments.contains("--selftest")
         if !isDiagnostics && SingleInstanceLock.isAlreadyRunning() {
+            // A SidePiece is already running (usually hidden). Clicking the app
+            // icon again should bring the bar back, not quietly do nothing — so
+            // drop a sentinel file the live instance polls for, then exit.
+            try? "".write(toFile: "/tmp/sidepiece.wake", atomically: true, encoding: .utf8)
             NSApplication.shared.terminate(nil)
             return
         }
@@ -128,6 +132,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
         setExpanded(false)
         panel.orderFrontRegardless()
         hideMenuItem?.title = "Hide SidePiece"
+    }
+
+    // A duplicate launch (user clicked the app icon again while the bar was
+    // hidden) drops /tmp/sidepiece.wake; the running instance polls for it and
+    // brings the bar back + opens it.
+    private static let wakeSentinel = "/tmp/sidepiece.wake"
+    private func checkWake() {
+        guard (try? String(contentsOfFile: Self.wakeSentinel)) != nil else { return }
+        try? FileManager.default.removeItem(atPath: Self.wakeSentinel)
+        DispatchQueue.main.async { [weak self] in
+            self?.showPanel()
+            self?.setExpanded(true)
+        }
     }
 
     @objc private func togglePanel() {
@@ -317,6 +334,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
     private func startHoverPolling() {
         hoverTimer?.invalidate()
         hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
+            self?.checkWake()
             self?.pollHover()
         }
     }
