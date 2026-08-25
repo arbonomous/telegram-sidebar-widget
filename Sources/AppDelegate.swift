@@ -91,6 +91,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate,
         }
     }
 
+    // macOS sends this Apple Event when you click the app icon of an already-
+    // running app (there's no Dock/visible window, so it just re-activates).
+    // Bring the bar back + open it.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showPanel()
+        setExpanded(true)
+        return true
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         hoverTimer?.invalidate()
         collapseGrace?.invalidate()
