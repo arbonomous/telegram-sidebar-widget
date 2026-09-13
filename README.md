@@ -1,117 +1,84 @@
 # SidePiece
 
-A screen-docked Telegram widget for macOS. It lives as a thin strip on the
-**right screen edge** and expands into a full chat panel when you hover it —
-no Telegram API credentials required.
+A sleek, screen-docked Telegram widget for macOS. It lives as an unobtrusive strip on the edge of your screen and expands into a full chat panel on cursor hover — no Telegram API credentials required.
 
-It wraps **Telegram Web** (`web.telegram.org/k`) inside a native `WKWebView`,
-so sending, receiving, and read state all work, and your login persists
-between launches.
+It wraps **Telegram Web** (`web.telegram.org/k`) inside a native `WKWebView`, providing persistent login, full sending/receiving capabilities, and seamless integration with macOS.
+
+---
 
 ## Features
 
-- **Dock to the right edge.** A 40px collapsed strip with a solid Telegram
-  brand-blue (`#3390EC`) background and the official Telegram logo at the top.
-- **Hover to expand.** The panel smoothly grows to 380px with an eased
-  transition; it collapses back when the cursor leaves.
-- **Real Telegram Web.** Login via QR / phone number inside the panel — your
-  session is preserved across relaunches.
-- **Light theme.** The web view is forced to Telegram's clean light theme
-  (white surfaces, brand-blue accents).
-- **Accessory app.** Runs as a menu-bar / background accessory (no Dock icon),
-  so it stays out of the way until you need it.
+- **Dock to Either Screen Edge:** Pinned to either the **right** or **left** screen edge with multi-monitor awareness.
+- **Rail Style (Classic Telegram Blue):** Solid brand-blue (`#3390EC`-equivalent) collapsed strip with the official Telegram logo, sitting on a dark-neutral floating panel backdrop that prevents visual flashes against any wallpaper.
+- **Hover to Expand:** The panel smoothly animates open with an eased transition and collapses back when your cursor moves away.
+- **Screen-Edge Unread Badge:** Shows a notification badge pill directly on the collapsed rail when unread messages arrive, plus menu bar status updates.
+- **Modern Floating Aesthetic:** 14pt rounded corner radii on the floating inner edges with dark-neutral backdrop to prevent flashes.
+- **Native Telegram Day & Night Modes:** Zero artificial CSS hacks — Telegram Web K's official themes (Day and Night Mode) run completely natively and persist automatically.
+- **External Link Interception:** Clicking links inside chats opens them in your default browser (Safari, Chrome, etc.) rather than navigating away inside the widget.
+- **Full macOS Clipboard Support:** First-class support for standard shortcuts (`Cmd+C`, `Cmd+V`, `Cmd+X`, `Cmd+A`, `Cmd+Z`) inside message inputs.
+- **Display & Resolution Awareness:** Automatically repositions when plugging into external monitors or changing display resolutions.
+- **Configurable Geometry:**
+  - **Panel Width:** Narrow (300pt), Medium (380pt), or Wide (460pt).
+  - **Compact Mode:** Center-docked compact sidebar with Short (400pt), Medium (500pt), or Tall (650pt) options.
+- **Menu Bar Controls & Shortcuts:**
+  - `Cmd+E`: Expand / Collapse Panel
+  - `Cmd+H`: Hide / Show SidePiece
+  - `Cmd+R`: Reload Web View
+  - `Cmd+Q`: Quit SidePiece
+  - Launch at Login and Expand on Notification preferences.
+
+---
 
 ## Requirements
 
 - macOS 12.0+
 - Xcode Command Line Tools (`swiftc`): `xcode-select --install`
 
-## Build & install
+---
+
+## Building & Installing
+
+You can use standard `make` or `bash build.sh`:
 
 ```bash
-bash build.sh          # build + bundle .app, install to /Applications,
-                       # auto-launch at login, rebuild dist/SidePiece.dmg
+make            # Compiles and bundles build/SidePiece.app
+make install    # Builds and installs to /Applications/SidePiece.app
+make test       # Runs the automated test harness
+make dmg        # Packages dist/SidePiece.dmg for distribution
+make clean      # Cleans all build artifacts
 ```
 
-- `bash build.sh --icon` — also regenerate the icon from `SidePiece.svg`
-- `bash build.sh --dmg`   — only rebuild `dist/SidePiece.dmg` from the existing `.app`
-
-After install, hover the strip on the right edge → it expands; move the cursor
-away → it collapses. First launch: log into Telegram Web inside the panel.
-
-The bundle copies the official `Logo.png` next to the executable; the rail
-loads it at runtime. (Bundle resource lookup was unreliable in this project,
-so the logo is loaded from an explicit file path.)
-
-**Session persistence:** the WebView's data store is pinned to a fixed
-identifier (`WKWebsiteDataStore(forIdentifier:)`), so your Telegram login
-survives app renames, rebuilds, and reinstalls — log in once and stay logged
-in. The first launch migrates any session left behind by the old
-`TelegramSidebarWeb` build.
-
-**Single instance:** only one interactive SidePiece may run at a time — a
-process-level advisory lock (`~/Library/Application Support/SidePiece/.running`)
-blocks a second launch, which previously caused two overlapping widgets/sessions
-on the edge. Diagnostic mode (`--selftest`) is exempt so the test harness can
-run in parallel.
-
-## Distribute as a DMG
+Or via shell scripts directly:
 
 ```bash
-bash build.sh --dmg     # produces dist/SidePiece.dmg
+bash build.sh          # Full build + package + install
+bash build.sh --dmg    # Rebuild dist/SidePiece.dmg
 ```
 
-Send `dist/SidePiece.dmg` to a friend — they open it and drag
-`SidePiece.app` into Applications.
+---
 
-## Tests
-
-```bash
-xcrun swift Tests/backtest.swift        # logic harness (badge, hover, geometry)
-bash Tests/render_smoke.sh              # renders the WebView and proves it isn't blank
-```
-
-`render_smoke.sh` launches the app in `--selftest` mode, which force-expands
-the panel, captures the rendered pixels, and fails if the WebView paints
-blank/white (the regression that once shipped undetected). Requires network
-access and a window server (run on a logged-in Mac, not headless CI).
-
-## Project layout
+## Project Structure
 
 ```
-Sources/                  # the Swift app source (not a website)
-  AppDelegate.swift       # panel, rail, hover/animation, Telegram-Web bridge, --selftest
-  main.swift              # NSApplication entry point (accessory policy)
-  build.sh               # swiftc build
-  bundle.sh              # package as .app (icon + logo)
-  build-icon.sh          # regenerate build/AppIcon.icns from SidePiece.svg
-  dmg.sh                 # package as distributable .dmg
-  com.sidepiece.app.plist# LaunchAgent (auto-launch at login)
-build/                    # regenerable artifacts (git-ignored)
-  AppIcon.icns            # app icon (generated from SidePiece.svg)
-dist/                     # distributables (git-ignored)
-  SidePiece.dmg
-Logo.png                  # official Telegram logo (rendered on the collapsed rail)
-Logo.svg                  # vector source for the logo
-SidePiece.svg             # app-icon source (tracked)
-Tests/
-  backtest.swift          # end-to-end logic harness (20/20 checks)
-  render_smoke.sh         # render smoke-test (catches blank/white regressions)
-build.sh                  # one-command front door (build + install + dmg)
+├── Makefile                # Standard developer targets (build, install, test, dmg, clean)
+├── build.sh                # Main build and distribution orchestrator
+├── Logo.png                # Official Telegram logo loaded onto the collapsed rail
+├── Logo.svg                # Vector source for rail branding
+├── SidePiece.svg           # High-resolution vector source for the application icon
+├── Sources/
+│   ├── AppDelegate.swift   # Window controller, geometry, status menu, navigation & link delegate
+│   ├── main.swift          # Application entry point with standard Edit menu clipboard bindings
+│   ├── build.sh            # Swift compiler invocation (swiftc -O)
+│   ├── bundle.sh           # Packages the .app bundle with icons and LaunchAgent resources
+│   ├── build-icon.sh       # Compiles AppIcon.icns from SidePiece.svg
+│   ├── dmg.sh              # Stages and creates distributable DMG disk image
+│   └── com.sidepiece.app.plist # LaunchAgent template for login auto-start
+├── Tests/
+│   ├── backtest.swift      # Deterministic geometry and badge parsing test suite (29 tests)
+│   └── render_smoke.sh     # Headless rendering smoke test for continuous verification
 ```
 
-## How it works
-
-- The panel is a borderless, non-activating `NSPanel` pinned to the right edge.
-- A 40px `railView` holds the brand-blue background + logo; it is removed from
-  the view hierarchy whenever the panel is expanded, so the blue never shows
-  across a wide panel.
-- The `WKWebView` loads `web.telegram.org/k` directly and is **opaque**
-  (`drawsBackground = true`) so Telegram's own content always paints reliably
-  inside a borderless panel. It is explicitly un-hidden on every expand.
-- An injected script forces Telegram's light theme and keeps it applied.
-- Hover is polled via `NSEvent.mouseLocation` (no Accessibility permission
-  required), driving a smooth `easeInEaseOut` expand/collapse.
+---
 
 ## License
 

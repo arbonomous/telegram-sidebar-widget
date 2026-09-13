@@ -7,9 +7,13 @@
 # (must run on a logged-in Mac, not a headless CI box).
 set -uo pipefail
 
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="${1:-/Applications/SidePiece.app}"
+if [ ! -x "$APP/Contents/MacOS/SidePiece" ] && [ -x "$ROOT/build/SidePiece.app/Contents/MacOS/SidePiece" ]; then
+  APP="$ROOT/build/SidePiece.app"
+fi
 BIN="$APP/Contents/MacOS/SidePiece"
-test -x "$BIN" || { echo "FAIL: build the app first (bash web/bundle.sh)"; exit 1; }
+test -x "$BIN" || { echo "FAIL: build the app first (bash build.sh)"; exit 1; }
 
 pgrep -f SidePiece | xargs -r kill 2>/dev/null; sleep 1
 rm -f /tmp/tg_selftest.json /tmp/tg_selftest.png

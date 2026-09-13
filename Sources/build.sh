@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the WKWebView-based Telegram sidebar (login via QR in the app — no typing).
+# Build the WKWebView-based Telegram sidebar widget
 set -euo pipefail
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 OUT="${1:-$SRC_DIR/../SidePiece}"
