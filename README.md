@@ -45,6 +45,7 @@ make            # Compiles and bundles build/SidePiece.app
 make install    # Builds and installs to /Applications/SidePiece.app
 make test       # Runs the automated test harness
 make dmg        # Packages dist/SidePiece.dmg for distribution
+make pkg        # Builds dist/SidePiece.pkg native installer
 make clean      # Cleans all build artifacts
 ```
 
@@ -77,6 +78,20 @@ bash build.sh --dmg    # Rebuild dist/SidePiece.dmg
 │   ├── backtest.swift      # Deterministic geometry and badge parsing test suite (29 tests)
 │   └── render_smoke.sh     # Headless rendering smoke test for continuous verification
 ```
+
+---
+
+## Releases
+
+Download SidePiece for macOS 12.0+:
+
+| Format | What it does |
+|---|---|
+| **[SidePiece.dmg](https://github.com/arbonomous/telegram-sidebar-widget/releases/download/v1.0.0/SidePiece.dmg)** | Drag-and-drop disk image — open, drag `SidePiece.app` to `/Applications`. |
+| **[SidePiece.pkg](https://github.com/arbonomous/telegram-sidebar-widget/releases/download/v1.0.0/SidePiece.pkg)** | Native macOS installer — places the app in `/Applications` and sets launch-at-login. Recommended for most users. |
+| **[SidePiece.zip](https://github.com/arbonomous/telegram-sidebar-widget/releases/download/v1.0.0/SidePiece.zip)** | Portable archive — unzip and move `SidePiece.app` wherever you like. |
+
+**macOS "damaged app" warning:** SidePiece is unsigned (no $99/yr Apple Developer certificate). If macOS says it's damaged, it isn't — see [TESTERS_GUIDE.md](TESTERS_GUIDE.md) for the 100%-GUI bypass.
 
 ---
 
